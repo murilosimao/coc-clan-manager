@@ -17,9 +17,9 @@ Seleciona participantes para a próxima guerra a partir dos escudos atuais, memb
 O Quartel do Clã tem três áreas: **Time**, **Critérios** e **Última guerra**. No PC, a lista facilita comparar jogadores e apresenta contexto na lateral. No celular, a navegação fica na parte inferior, com detalhes expansíveis e ação de copiar. A busca e os filtros Convocados/Reserva/Todos funcionam nas duas telas.
 
 - Estrelas do **1º e 2º ataque** aparecem separadamente. Zero estrela é um resultado válido; `—` significa ataque ausente ou desempenho indisponível.
-- **Copiar para Excel** usa TSV com cabeçalhos. **Baixar TSV** gera o mesmo conteúdo em UTF-8 com BOM. Nomes são tratados como texto para evitar fórmulas ao colar na planilha. Não há importação de arquivos.
+- **Copiar para Excel** usa TSV com cabeçalhos. **Baixar TSV** gera o mesmo conteúdo em UTF-8 com BOM, incluindo a fonte do desempenho. Nomes são tratados como texto para evitar fórmulas ao colar na planilha. Não há importação de arquivos.
 - **Histórico e estatísticas** nos detalhes de cada jogador (ou **Estatísticas e CWL** no relatório) consulta até 100 guerras pessoais no ClashKing. O filtro separa guerras normais de Liga. Os cálculos usam apenas guerras concluídas e a quantidade de ataques informada por cada guerra, incluindo rodadas de CWL com um ataque. O histórico pode incluir outros clãs e é consultado somente ao abrir o painel.
-- A seleção continua usando o desempenho da última guerra concluída; o histórico pessoal é uma análise adicional para a decisão do líder.
+- Com a consulta opcional ligada, o histórico pessoal da última guerra normal concluída substitui a falta de registro na última guerra do clã para aplicar os mesmos critérios. Desempenho pessoal fica identificado separadamente na escalação.
 - Brasões vêm do campo público `badgeUrls`. Os ícones de CV 1–18 estão incluídos no próprio site. Créditos e origem em `public/portal/images/SOURCES.md`. Ícones ausentes têm representação textual de reserva.
 
 O redesenho foi iniciado em um worktree de `origin/main` (`43610a2`), na branch `redesign/mobile-war-room`. O sistema visual e as decisões de UX estão em `design-system/MASTER.md`.
@@ -33,7 +33,7 @@ O GitHub Pages publica a página estática, que consulta as rotas `/api/*` no Cl
 - O Worker usa URLs fixas, sem aceitar um endereço de destino arbitrário, e não encaminha cookies ou credenciais do navegador.
 - Cache de 60 segundos nas respostas bem-sucedidas; são exibidos o momento da consulta e os avisos de dados ausentes.
 - Os jogadores são consultados em lotes de cinco. Cada invocação usa no máximo cinco consultas externas e três conexões simultâneas.
-- Perfis indisponíveis ou que já não pertençam ao clã ficam com escudo desconhecido, excluído enquanto o filtro estiver ligado. Confirmações manuais antigas não substituem os dados da API.
+- Perfis indisponíveis ou que já não pertençam ao clã ficam com escudo desconhecido e permanecem elegíveis; somente escudo vermelho bloqueia. Confirmações manuais antigas não substituem os dados da API.
 - Histórico ausente ou incompleto é identificado. A demonstração de desenvolvimento (`?demo=1`) é explícita e nunca substitui uma falha da API automaticamente.
 - Workers Logs registra chamadas da API por categoria e ações básicas da página. Usa um UUID temporário por aba para agrupar a sessão; os logs personalizados não incluem IP completo, nomes ou tags de jogadores, conteúdo de HAR, cabeçalhos ou credenciais. Os logs automáticos de invocação ficam desligados para não persistir URLs com parâmetros. No plano gratuito, a Cloudflare informa retenção de 3 dias e limite de 200 mil eventos por dia.
 
@@ -86,10 +86,11 @@ Se futuramente for usada a API oficial da Supercell, a chave deverá ficar em um
 
 ## Regras
 
-- Filtro de escudo exclui vermelhos e desconhecidos.
-- Critérios de desempenho consideram ataques, estrelas e ataques de três estrelas da última guerra.
-- Listas de inclusão e exclusão e ajustes manuais preservam os bloqueios de escudo ativos.
-- Tamanhos válidos: 5, 10, 15, ..., 50.
+- Somente o escudo vermelho exclui automaticamente; escudos sem confirmação permanecem elegíveis.
+- Para quem tem registro na última guerra concluída do clã, a seleção exige os dois ataques e pelo menos uma estrela. A ausência de registro não exclui o jogador.
+- A consulta ao histórico pessoal em guerras normais anteriores, inclusive de outros clãs, é opcional e vem desligada. Se ligada, ela só substitui a ausência de registro na última guerra do clã; falha ou falta de histórico continua sem excluir o jogador.
+- A lista de prioridade pode superar os critérios de desempenho, mas nunca o escudo vermelho. Bloqueios manuais também são respeitados.
+- O tamanho sugerido é o padrão mais próximo da quantidade elegível, entre 5, 10, 15, ..., 50. Uma diferença de até duas vagas é preenchida ou cortada pelo fim da ordem escolhida.
 - Novas estrelas são calculadas por ordem de ataque, acompanhando o melhor resultado anterior em cada base.
 - A seleção pode ser copiada ou baixada em TSV, incluindo o resultado separado de cada ataque e o motivo da convocação.
 

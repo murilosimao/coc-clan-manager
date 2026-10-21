@@ -15,6 +15,8 @@
     clanTag: E.DEFAULT_CLAN, clanName: '', clanBadgeUrl: '', members: [], lastWar: null, currentWar: null,
     settings: structuredClone(E.DEFAULT_SETTINGS), selection: null, source: '', fetchedAt: '',
     dataWarnings: [], loading: false, status: '', error: '', view: 'team', filter: 'selected',
+    personalWarByTag: new Map(), personalHistoryStatusByTag: new Map(), historyLoading: false,
+    historyLookupWarning: '', historyToken: 0,
     query: '', warQuery: '', warTab: 'players', expanded: new Set(), advancedOpen: false,
   };
   const statsState = { tag: '', name: '', type: 'random', data: null, loading: false, error: '', token: 0, cache: new Map() };
@@ -32,11 +34,16 @@
         } else if (value != null && typeof value === typeof E.DEFAULT_SETTINGS[key]) state.settings[key] = value;
       }
       if (/^[0289PYLQGRJCUV]{3,15}$/.test(E.normalizeTag(saved.clanTag))) state.clanTag = E.normalizeTag(saved.clanTag);
-      state.settings.fixedSize = E.STANDARD_SIZES.includes(Number(state.settings.fixedSize)) ? Number(state.settings.fixedSize) : 30;
+      if (Number(saved.selectionRulesVersion) < 2) {
+        // The previous release required triples, excluded players without data,
+        // and defaulted to the largest team. Keep personal lists, migrate rules.
+        state.settings.usePlayerHistoryFallback = false;
+        saveSettings();
+      }
     } catch { /* Storage is optional. */ }
   }
   function saveSettings() {
-    try { localStorage.setItem(storageKey, JSON.stringify({ ...state.settings, clanTag: state.clanTag })); } catch { /* Storage is optional. */ }
+    try { localStorage.setItem(storageKey, JSON.stringify({ ...state.settings, clanTag: state.clanTag, selectionRulesVersion: 2 })); } catch { /* Storage is optional. */ }
   }
   function toast(message) {
     const node = $('#toast');
@@ -48,15 +55,31 @@
   }
   function reason(row) {
     if (row.blacklisted) return { label: 'Bloqueado na lista', tone: 'red', detail: 'A lista de exclusão tem prioridade sobre qualquer critério.' };
-    if (row.hardFail) return { label: row.member.pref === 'out' ? 'Escudo vermelho' : 'Escudo não confirmado', tone: 'muted', detail: row.hardReasons.join(' · ') };
+    if (row.hardFail) return { label: 'Escudo vermelho', tone: 'red', detail: row.hardReasons.join(' · ') };
     if (row.forcedOut) return { label: 'Removido por você', tone: 'muted', detail: 'Um ajuste manual retirou este jogador do time.' };
     if (row.forcedIn) return { label: 'Incluído por você', tone: 'blue', detail: 'Inclusão manual, respeitando os filtros de escudo e a lista de exclusão.' };
     if (row.whitelisted) return { label: 'Lista de prioridade', tone: 'blue', detail: 'A prioridade permite incluir sem cumprir os critérios de desempenho.' };
-    if (row.ruleReasons.length) return { label: 'Sem ataque com 3 estrelas', tone: 'red', detail: row.ruleReasons.join(' · ') };
-    if (row.trimmed) return { label: 'Sem vaga neste time', tone: 'muted', detail: 'O jogador está apto, mas o time atingiu o tamanho definido.' };
-    if (row.exception) return { label: 'Exceção para completar', tone: 'gold', detail: row.softReasons.join(' · ') || 'Incluído para completar o tamanho do time.' };
-    if (row.eligible) return { label: 'Critérios atendidos', tone: 'green', detail: 'Atende aos critérios ativos para esta convocação.' };
-    return { label: !row.inWar ? 'Sem registro de guerra' : 'Desempenho abaixo do critério', tone: 'muted', detail: row.softReasons.join(' · ') };
+    if (row.trimmed) return { label: 'Sem vaga neste time', tone: 'muted', detail: 'O jogador atende às regras, mas ficou entre os últimos após o ajuste para um tamanho válido.' };
+    if (row.exception) return { label: 'Exceção para completar', tone: 'gold', detail: `${row.softReasons.join(' · ') || 'Incluído para completar o tamanho do time.'}${row.usedPersonalHistory ? ` ${personalHistoryDetail(row.historyWar)}` : ''}` };
+    if (row.softReasons.length) return { label: row.usedPersonalHistory ? 'Histórico abaixo das regras' : 'Desempenho abaixo das regras', tone: 'muted', detail: `${row.softReasons.join(' · ')}${row.usedPersonalHistory ? `. ${personalHistoryDetail(row.historyWar)}` : ''}` };
+    if (row.usedPersonalHistory) return { label: 'Histórico pessoal aprovado', tone: 'blue', detail: personalHistoryDetail(row.historyWar) };
+    if (!row.inWar) {
+      if (row.historyStatus === 'unavailable') return { label: 'Histórico indisponível · mantido', tone: 'gold', detail: 'A consulta ao histórico falhou. Sem registro da guerra anterior, o jogador permanece elegível.' };
+      if (row.historyStatus === 'none') return { label: 'Sem histórico · mantido', tone: 'blue', detail: 'Não há guerra normal anterior registrada. A ausência de dados não exclui o jogador.' };
+      return { label: 'Sem registro · mantido', tone: 'blue', detail: 'Sem participação registrada na última guerra do clã. A ausência de dados não exclui o jogador.' };
+    }
+    if (row.eligible) return { label: 'Critérios atendidos', tone: 'green', detail: 'Fez os dois ataques e marcou ao menos uma estrela na última guerra concluída.' };
+    return { label: 'Desempenho abaixo das regras', tone: 'muted', detail: row.softReasons.join(' · ') };
+  }
+  function personalHistoryDetail(war) {
+    const time = window.ClashKing.timestamp(war?.endTime);
+    const date = Number.isFinite(time) ? new Date(time).toLocaleDateString('pt-BR') : 'data não informada';
+    const clan = war?.clan?.name ? ` pelo clã ${war.clan.name}` : '';
+    const attacks = [...(war?.attacks || [])].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+    const stars = attacks.reduce((sum, attack) => sum + attack.stars, 0);
+    const attackResult = (value) => value == null ? 'não realizado' : `${value} ${value === 1 ? 'estrela' : 'estrelas'}`;
+    const total = `${stars} ${stars === 1 ? 'estrela' : 'estrelas'}`;
+    return `Histórico pessoal: 1º ataque ${attackResult(attacks[0]?.stars)}, 2º ataque ${attackResult(attacks[1]?.stars)}, ${total} no total; guerra encerrada em ${date}${clan}.`;
   }
   function badgeUrl(value) {
     const url = typeof value === 'string' ? value : value?.medium || value?.large || value?.small || '';
@@ -76,16 +99,16 @@
     return `<${tag} class="player-stat attack-stat"><b>${known ? esc(stars) + icon('star', Number(stars) > 0 ? 'filled' : '') : '—'}</b><span>${label}</span></${tag}>`;
   }
   function updateSelection() {
-    state.selection = state.members.length ? E.selectTeam(state.members, state.lastWar, state.settings, state.currentWar) : null;
+    state.selection = state.members.length ? E.selectTeam(state.members, state.lastWar, state.settings, state.currentWar, state.personalWarByTag, state.personalHistoryStatusByTag) : null;
   }
   function render() {
     updateSelection(); renderHeader(); renderStatus(); renderTeam(); renderRules(); renderWar();
-    const canCopy = Boolean(state.selection?.selected.length) && !state.loading;
+    const canCopy = Boolean(state.selection?.selected.length) && !state.loading && !state.historyLoading;
     $('#mobile-copy').disabled = !canCopy;
     $('#refresh').disabled = state.loading;
     if (!$('#clan-dialog').open) $('#clan-input').value = '#' + state.clanTag;
     $('#clan-form button[type=submit]').disabled = state.loading;
-    $('#source-info').innerHTML = `<h3>Sobre os dados</h3><p>${state.source === 'demo' ? 'Demonstração de 20/10/2026. Esta captura não representa o clã em tempo real.' : 'Os escudos e membros vêm dos perfis públicos do jogo. O desempenho usa a última guerra concluída disponível. As fontes podem apresentar atraso de atualização; o cache dura até 1 minuto.'}</p>${state.fetchedAt ? `<p>Última consulta: ${esc(new Date(state.fetchedAt).toLocaleString('pt-BR'))}.</p>` : ''}`;
+    $('#source-info').innerHTML = `<h3>Sobre os dados</h3><p>${state.source === 'demo' ? 'Demonstração de 20/10/2026. Esta captura não representa o clã em tempo real.' : 'Os escudos e membros vêm dos perfis públicos do jogo. O desempenho usa a última guerra concluída; sem registro, o jogador permanece elegível. As fontes podem apresentar atraso de atualização; o cache dura até 1 minuto.'}</p>${state.settings.usePlayerHistoryFallback ? '<p>Quando ativado, o histórico pessoal da última guerra normal concluída é usado somente para quem não tem registro na última guerra do clã.</p>' : ''}${state.fetchedAt ? `<p>Última consulta: ${esc(new Date(state.fetchedAt).toLocaleString('pt-BR'))}.</p>` : ''}`;
   }
   function renderHeader() {
     $('#clan-name').textContent = state.clanName || (state.loading ? 'Convocando os dados…' : 'Seu clã. Seu próximo time.');
@@ -96,12 +119,12 @@
   }
   function renderStatus() {
     const node = $('#status');
-    node.hidden = !state.loading && !state.error && !state.dataWarnings.length && state.source !== 'demo';
-    node.className = 'status-banner ' + (state.error ? 'error' : state.loading ? 'loading' : 'notice');
+    node.hidden = !state.loading && !state.historyLoading && !state.error && !state.dataWarnings.length && !state.historyLookupWarning && state.source !== 'demo';
+    node.className = 'status-banner ' + (state.error ? 'error' : state.loading || state.historyLoading ? 'loading' : 'notice');
     if (state.error) node.innerHTML = `${icon('alert')}<div><strong>Não foi possível atualizar o clã</strong><p>${esc(state.error)}</p></div><button type="button" class="button secondary" data-command="refresh">Tentar de novo</button>`;
-    else if (state.loading) node.innerHTML = `${icon('refresh', 'spinning')}<span>${esc(state.status || 'Consultando membros, escudos e guerras…')}</span>`;
+    else if (state.loading || state.historyLoading) node.innerHTML = `${icon('refresh', 'spinning')}<span>${esc(state.status || 'Consultando membros, escudos e guerras…')}</span>`;
     else if (state.source === 'demo') node.innerHTML = `${icon('flag')}<span>Você está explorando uma demonstração de 20/10/2026.</span><button type="button" class="text-button" data-command="refresh">Usar dados atuais</button>`;
-    else node.innerHTML = `${icon('alert')}<div>${state.dataWarnings.map((warning) => `<p>${esc(warning)}</p>`).join('')}</div>`;
+    else node.innerHTML = `${icon('alert')}<div>${[...state.dataWarnings, state.historyLookupWarning].filter(Boolean).map((warning) => `<p>${esc(warning)}</p>`).join('')}</div>`;
   }
   function summary() {
     const s = state.selection;
@@ -128,16 +151,16 @@
     const s = state.selection;
     const counts = { selected: s.selected.length, bench: s.bench.length, all: state.members.length };
     const labels = { selected: 'Convocados', bench: 'Reserva', all: 'Todos' };
-    container.innerHTML = `${summary()}<div class="workspace-grid"><section class="roster-panel" aria-labelledby="team-title"><div class="section-heading"><div><div class="eyebrow">TIME DE GUERRA</div><h2 id="team-title" tabindex="-1">Escalação sugerida</h2></div><button type="button" class="button primary desktop-copy" data-command="copy">${icon('copy')}Copiar para Excel</button></div>
-      <div class="roster-toolbar"><div class="segments" role="group" aria-label="Jogadores exibidos">${Object.keys(labels).map((filter) => `<button type="button" data-filter="${filter}" aria-pressed="${state.filter === filter}">${labels[filter]}<span>${counts[filter]}</span></button>`).join('')}</div><div class="search-export"><label class="search-field">${icon('search')}<input type="search" id="roster-search" aria-label="Buscar jogador por nome ou tag" placeholder="Buscar jogador" autocomplete="off" value="${esc(state.query)}"></label><button type="button" class="button secondary export-button" data-command="export" aria-label="Baixar escalação em TSV" title="Baixar TSV para Excel">${icon('download')}<span>TSV</span></button></div></div>
+    container.innerHTML = `${summary()}<div class="workspace-grid"><section class="roster-panel" aria-labelledby="team-title"><div class="section-heading"><div><div class="eyebrow">TIME DE GUERRA</div><h2 id="team-title" tabindex="-1">Escalação sugerida</h2></div><button type="button" class="button primary desktop-copy" data-command="copy" ${state.loading || state.historyLoading ? 'disabled' : ''}>${icon('copy')}Copiar para Excel</button></div>
+      <div class="roster-toolbar"><div class="segments" role="group" aria-label="Jogadores exibidos">${Object.keys(labels).map((filter) => `<button type="button" data-filter="${filter}" aria-pressed="${state.filter === filter}">${labels[filter]}<span>${counts[filter]}</span></button>`).join('')}</div><div class="search-export"><label class="search-field">${icon('search')}<input type="search" id="roster-search" aria-label="Buscar jogador por nome ou tag" placeholder="Buscar jogador" autocomplete="off" value="${esc(state.query)}"></label><button type="button" class="button secondary export-button" data-command="export" aria-label="Baixar escalação em TSV" title="Baixar TSV para Excel" ${state.loading || state.historyLoading ? 'disabled' : ''}>${icon('download')}<span>TSV</span></button></div></div>
       <div id="roster-content"></div><div class="roster-footnote">${icon('shield')}Escudos indicam a preferência no jogo. Os ajustes aqui alteram apenas a sugestão.</div></section>${renderRail()}</div>`;
     renderRoster();
   }
   function renderRail() {
     const s = state.selection;
     const current = state.currentWar;
-    const rules = [['excludeRed', 'Apenas escudos verdes'], ['requireTwoAttacks', 'Dois ataques realizados'], ['requireOneStar', 'Ao menos uma estrela'], ['requireTriple', 'Ao menos um ataque de 3 estrelas']].filter(([key]) => state.settings[key]);
-    return `<aside class="summary-rail" aria-label="Contexto da seleção"><section class="rail-block"><div class="rail-title">${icon('sliders')}Critérios ativos</div><ul class="active-rules">${rules.map(([, label]) => `<li>${icon('check')}${label}</li>`).join('') || '<li>Sem exigências de desempenho</li>'}</ul><button type="button" class="button secondary full" data-view="rules">Ajustar critérios ${icon('arrow')}</button></section><section class="rail-block current-war"><div class="rail-title">${icon('swords')}Guerra atual</div><strong>${current ? `${current.header.sizeHome} × ${current.header.sizeAway}` : 'Sem dados atuais'}</strong><p>${current ? esc(current.result.label?.toLowerCase() || 'Em andamento') : 'A fonte não informou uma guerra atual.'}</p><button type="button" class="text-button" data-view="war">Ver última guerra ${icon('arrow')}</button></section>${s.warnings.length ? `<section class="rail-block selection-notes"><div class="rail-title">${icon('alert')}Sobre este time</div>${s.warnings.map((w) => `<p>${esc(w)}</p>`).join('')}</section>` : ''}<div class="rail-note">${icon('clock')}Desempenho da última guerra concluída. As preferências são consultadas no perfil de cada jogador.</div></aside>`;
+    const rules = ['Escudo vermelho sempre excluído', 'Jogadores com registro: 2 ataques e ao menos 1 estrela', 'Sem registro não significa exclusão', 'Tamanho padrão mais próximo; completar ou cortar até 2 pelo fim da lista'];
+    return `<aside class="summary-rail" aria-label="Contexto da seleção"><section class="rail-block"><div class="rail-title">${icon('sliders')}Critérios ativos</div><ul class="active-rules">${rules.map((label) => `<li>${icon('check')}${label}</li>`).join('')}</ul><button type="button" class="button secondary full" data-view="rules">Ver critérios ${icon('arrow')}</button></section><section class="rail-block current-war"><div class="rail-title">${icon('swords')}Guerra atual</div><strong>${current ? `${current.header.sizeHome} × ${current.header.sizeAway}` : 'Sem dados atuais'}</strong><p>${current ? esc(current.result.label?.toLowerCase() || 'Em andamento') : 'A fonte não informou uma guerra atual.'}</p><button type="button" class="text-button" data-view="war">Ver última guerra ${icon('arrow')}</button></section>${s.warnings.length ? `<section class="rail-block selection-notes"><div class="rail-title">${icon('alert')}Sobre este time</div>${s.warnings.map((w) => `<p>${esc(w)}</p>`).join('')}</section>` : ''}<div class="rail-note">Desempenho da última guerra concluída. As preferências são consultadas no perfil de cada jogador.</div></aside>`;
   }
   function filteredRows() {
     const s = state.selection;
@@ -158,21 +181,29 @@
     const selected = new Set(state.selection.selected.map((r) => r.member.tag));
     container.innerHTML = `<div class="roster-columns" aria-hidden="true"><span>Jogador</span><span>Escudo</span><span>1º ataque</span><span>2º ataque</span><span>Total</span><span>Convocação</span><span></span></div>${rows.length ? `<div class="player-list">${rows.map((row) => {
       const member = row.member; const why = reason(row); const isSelected = selected.has(member.tag);
-      return `<article class="player-row ${isSelected ? 'is-selected' : ''}" data-player="${esc(member.tag)}"><div class="player-line"><div class="player-identity">${townHall(member.th)}<div class="player-name"><h3>${esc(member.name)}</h3><span>${esc(roleNames[member.role] || member.role || 'Membro')}<i> · </i>#${member.position ?? '—'} no clã</span></div></div><div class="player-availability">${shield(member.pref)}</div>${attackMetric(row.perf?.firstAttackStars, '1º ataque')}${attackMetric(row.perf?.secondAttackStars, '2º ataque')}<div class="player-stat gold-stat"><b>${row.inWar ? row.stars : '—'}</b><span>total</span></div><div class="player-reason"><span class="reason ${why.tone}"><i class="dot ${why.tone}"></i>${why.label}</span></div><div class="player-action">${rowAction(row, isSelected)}</div></div><details class="player-details" data-expand="${esc(member.tag)}" ${state.expanded.has(member.tag) ? 'open' : ''}><summary><span>Ver detalhes</span>${icon('chevron')}</summary><div class="player-detail-content"><div class="detail-copy"><span class="tag-code">#${esc(member.tag)}</span><p>${esc(why.detail)}</p><p class="muted">${row.inWar ? `${row.attacks} ataques usados · ${row.triples} com 3 estrelas · ${row.newStars} novas estrelas no placar.` : 'Sem participação registrada na última guerra concluída.'}</p></div><div class="player-options"><button type="button" class="button small secondary" data-stats="${esc(member.tag)}">${icon('star')}Histórico e estatísticas</button><button type="button" class="button small ${row.whitelisted ? 'active-option' : 'secondary'}" data-action="priority" data-tag="${esc(member.tag)}" aria-pressed="${row.whitelisted}">${icon('flag')}${row.whitelisted ? 'Prioridade ativa' : 'Priorizar jogador'}</button><button type="button" class="button small ${row.blacklisted ? 'danger' : 'secondary'}" data-action="block" data-tag="${esc(member.tag)}" aria-pressed="${row.blacklisted}">${icon('x')}${row.blacklisted ? 'Remover bloqueio' : 'Bloquear no time'}</button></div></div></details></article>`;
+      const historyShownInReason = row.usedPersonalHistory && ['Histórico abaixo das regras', 'Histórico pessoal aprovado', 'Exceção para completar'].includes(why.label);
+      const previousWarDetail = row.inWar
+        ? `${row.attacks} ataques usados · ${row.stars} estrelas na última guerra do clã.`
+        : row.usedPersonalHistory
+          ? `Sem participação registrada na última guerra do clã.${historyShownInReason ? '' : ` ${personalHistoryDetail(row.historyWar)}`}`
+          : 'Sem participação registrada na última guerra do clã. A ausência de registro não exclui o jogador.';
+      return `<article class="player-row ${isSelected ? 'is-selected' : ''}" data-player="${esc(member.tag)}"><div class="player-line"><div class="player-identity">${townHall(member.th)}<div class="player-name"><h3>${esc(member.name)}</h3><span>${esc(roleNames[member.role] || member.role || 'Membro')}<i> · </i>#${member.position ?? '—'} no clã</span></div></div><div class="player-availability">${shield(member.pref)}</div>${attackMetric(row.perf?.firstAttackStars, '1º ataque')}${attackMetric(row.perf?.secondAttackStars, '2º ataque')}<div class="player-stat gold-stat"><b>${row.inWar ? row.perf.stars : '—'}</b><span>total</span></div><div class="player-reason"><span class="reason ${why.tone}"><i class="dot ${why.tone}"></i>${why.label}</span></div><div class="player-action">${rowAction(row, isSelected)}</div></div><details class="player-details" data-expand="${esc(member.tag)}" ${state.expanded.has(member.tag) ? 'open' : ''}><summary><span>Ver detalhes</span>${icon('chevron')}</summary><div class="player-detail-content"><div class="detail-copy"><span class="tag-code">#${esc(member.tag)}</span><p>${esc(why.detail)}</p><p class="muted">${esc(previousWarDetail)}</p></div><div class="player-options"><button type="button" class="button small secondary" data-stats="${esc(member.tag)}">${icon('star')}Histórico e estatísticas</button><button type="button" class="button small ${row.whitelisted ? 'active-option' : 'secondary'}" data-action="priority" data-tag="${esc(member.tag)}" aria-pressed="${row.whitelisted}">${icon('flag')}${row.whitelisted ? 'Prioridade ativa' : 'Priorizar jogador'}</button><button type="button" class="button small ${row.blacklisted ? 'danger' : 'secondary'}" data-action="block" data-tag="${esc(member.tag)}" aria-pressed="${row.blacklisted}">${icon('x')}${row.blacklisted ? 'Remover bloqueio' : 'Bloquear no time'}</button></div></div></details></article>`;
     }).join('')}</div>` : `<div class="empty-search">${icon('search')}<h3>Nenhum jogador encontrado</h3><p>Tente outro nome, tag ou filtro.</p></div>`}<div class="list-count" aria-live="polite">${rows.length} ${rows.length === 1 ? 'jogador exibido' : 'jogadores exibidos'}${state.query ? ' nesta busca' : ''}</div>`;
     $$('#roster-content details').forEach((node) => node.addEventListener('toggle', () => { if (node.open) state.expanded.add(node.dataset.expand); else state.expanded.delete(node.dataset.expand); }));
   }
   function toggleSetting(key, title, description, name) {
-    return `<label class="rule-toggle"><span class="rule-symbol">${icon(name)}</span><span class="rule-copy"><strong>${title}</strong><small>${description}</small></span><input type="checkbox" data-setting="${key}" ${state.settings[key] ? 'checked' : ''}><span class="switch" aria-hidden="true"></span></label>`;
+    return `<label class="rule-toggle"><span class="rule-symbol">${icon(name)}</span><span class="rule-copy"><strong>${title}</strong><small>${description}</small></span><input type="checkbox" data-setting="${key}" ${state.settings[key] ? 'checked' : ''} ${state.loading ? 'disabled' : ''}><span class="switch" aria-hidden="true"></span></label>`;
+  }
+  function fixedRule(title, description, name) {
+    return `<div class="rule-toggle fixed-rule"><span class="rule-symbol">${icon(name)}</span><span class="rule-copy"><strong>${title}</strong><small>${description}</small></span><span class="rule-state">Sempre</span></div>`;
   }
   function selectField(key, label, options, disabled = false, helper = '') {
     return `<label class="field"><span>${label}</span><select data-setting="${key}" ${disabled ? 'disabled' : ''}>${options.map(([value, text]) => `<option value="${value}" ${String(state.settings[key]) === String(value) ? 'selected' : ''}>${text}</option>`).join('')}</select>${helper ? `<small>${helper}</small>` : ''}</label>`;
   }
   function renderRules() {
-    $('#rules-view').innerHTML = `<div class="view-heading"><div class="eyebrow">SUA ESTRATÉGIA</div><h2 id="rules-title" tabindex="-1">Os critérios do seu time.</h2><p>Defina quem pode entrar. A escalação se ajusta a cada alteração.</p></div><div class="rules-layout"><section class="settings-panel"><div class="panel-heading"><span class="section-index">01</span><div><h3>Quem está pronto para a guerra?</h3><p>Os critérios de desempenho usam a última guerra concluída.</p></div></div><div class="rule-list">${toggleSetting('excludeRed', 'Apenas escudos verdes', 'Jogadores com escudo vermelho ou não confirmado ficam fora.', 'shield')}${toggleSetting('requireTwoAttacks', 'Dois ataques realizados', 'Exige que os dois ataques tenham sido usados.', 'swords')}${toggleSetting('requireOneStar', 'Ao menos uma estrela', 'Exige uma estrela somada nos ataques do jogador.', 'star')}${toggleSetting('requireTriple', 'Ao menos um ataque de 3 estrelas', 'Critério eliminatório; as exceções não o ignoram.', 'star')}${toggleSetting('allowNoWarData', 'Permitir jogadores sem registro', 'Pode convocar quem não participou da última guerra.', 'users')}</div></section>
-      <section class="settings-panel"><div class="panel-heading"><span class="section-index">02</span><div><h3>Como montar a escalação?</h3><p>Tamanho, ordenação e margem para completar as vagas.</p></div></div><div class="fields-grid">${selectField('targetMode', 'Tamanho do time', [['max', 'Maior time possível'], ['current', state.currentWar ? `Igual à guerra atual (${state.currentWar.header.sizeHome})` : 'Igual à guerra atual'], ['auto', 'Mais próximo dos aptos'], ['fixed', 'Escolher tamanho']])}${selectField('fixedSize', 'Vagas na guerra', E.STANDARD_SIZES.map((s) => [s, `${s} × ${s}`]), state.settings.targetMode !== 'fixed')}${selectField('rankBy', 'Dar preferência por', [['position', 'Posição no clã'], ['th', 'Centro da Vila mais alto'], ['performance', 'Desempenho na última guerra'], ['name', 'Nome do jogador']])}</div><details class="advanced-settings" id="advanced-settings" ${state.advancedOpen ? 'open' : ''}><summary>Ajustar exceções e cortes ${icon('chevron')}</summary><div class="fields-grid"><label class="field"><span>Máximo de exceções</span><input type="number" data-setting="maxFill" min="0" max="15" step="1" value="${state.settings.maxFill}" ${state.settings.targetMode === 'max' ? 'disabled' : ''}><small>Jogadores que podem completar vagas sem cumprir critérios flexíveis.</small></label><label class="field"><span>Máximo de aptos fora do time</span><input type="number" data-setting="maxTrim" min="0" max="15" step="1" value="${state.settings.maxTrim}" ${state.settings.targetMode === 'max' ? 'disabled' : ''}><small>Permite cortar o excedente para caber no tamanho escolhido.</small></label>${selectField('fillFrom', 'Para completar as vagas, usar', [['bottom', 'Últimos da ordenação'], ['top', 'Primeiros da ordenação']])}</div></details><p class="settings-note">${icon('alert')}${state.settings.targetMode === 'max' ? 'O maior time possível usa tamanhos de 5 a 50. A prioridade pode ampliar o time; o excedente fica na reserva.' : 'As exceções respeitam os filtros de escudo, a lista de bloqueios e a exigência de ataque com 3 estrelas.'}</p></section>
-      <section class="settings-panel priority-panel"><div class="panel-heading"><span class="section-index">03</span><div><h3>A palavra final é sua.</h3><p>Priorize ou bloqueie jogadores nos detalhes da lista.</p></div></div><div class="priority-counts"><span><b>${state.settings.whitelist.length}</b> na prioridade</span><span><b>${state.settings.blacklist.length}</b> bloqueados</span></div><p class="muted">A prioridade permite ignorar critérios de desempenho, mas respeita o filtro de escudo. O bloqueio sempre prevalece.</p><button type="button" class="button secondary" data-command="all-players">Gerenciar jogadores ${icon('arrow')}</button></section></div><button type="button" class="button primary rules-back" data-view="team">Ver time atualizado ${icon('arrow')}</button>`;
-    $('#advanced-settings').addEventListener('toggle', (event) => { state.advancedOpen = event.target.open; });
+    $('#rules-view').innerHTML = `<div class="view-heading"><div class="eyebrow">SUA ESTRATÉGIA</div><h2 id="rules-title" tabindex="-1">Os critérios do seu time.</h2><p>As regras seguem o desempenho da guerra anterior, sem penalizar quem ainda não tem registro.</p></div><div class="rules-layout"><section class="settings-panel"><div class="panel-heading"><span class="section-index">01</span><div><h3>Regras da convocação</h3><p>Escudo vermelho bloqueia. As outras verificações usam dados existentes.</p></div></div><div class="rule-list">${fixedRule('Escudo vermelho', 'Não entra na escalação, mesmo com prioridade manual.', 'shield')}${fixedRule('Dois ataques e ao menos 1 estrela', 'Aplicado a quem participou da última guerra concluída do clã.', 'swords')}${fixedRule('Sem registro da guerra anterior', 'Permanece elegível; falta de dados não é motivo para excluir.', 'users')}${toggleSetting('usePlayerHistoryFallback', 'Consultar histórico pessoal', 'Desligado por padrão. Se faltar registro do clã, consulta a última guerra normal concluída do jogador, inclusive em outro clã.', 'clock')}</div></section>
+      <section class="settings-panel"><div class="panel-heading"><span class="section-index">02</span><div><h3>Fechar o tamanho da guerra</h3><p>O sistema escolhe o tamanho padrão mais próximo da lista elegível.</p></div></div><div class="fields-grid">${selectField('rankBy', 'Ordenar a lista por', [['position', 'Posição no clã'], ['th', 'Centro da Vila mais alto'], ['performance', 'Desempenho na última guerra'], ['name', 'Nome do jogador']], state.loading, 'Os últimos da ordem selecionada são usados para completar ou cortar até 2 vagas.')}</div><p class="settings-note">${icon('alert')}Times válidos têm 5, 10, 15… até 50 jogadores. A diferença de 1 ou 2 vagas é completada ou cortada pelo fim da lista; escudo vermelho nunca é usado para completar.</p></section>
+      <section class="settings-panel priority-panel"><div class="panel-heading"><span class="section-index">03</span><div><h3>A palavra final é sua.</h3><p>Priorize ou bloqueie jogadores nos detalhes da lista.</p></div></div><div class="priority-counts"><span><b>${state.settings.whitelist.length}</b> na prioridade</span><span><b>${state.settings.blacklist.length}</b> bloqueados</span></div><p class="muted">A lista de prioridade pode superar critérios de desempenho, mas nunca o escudo vermelho. O bloqueio manual sempre prevalece. As listas de prioridade existentes são preservadas nas atualizações.</p><button type="button" class="button secondary" data-command="all-players">Gerenciar jogadores ${icon('arrow')}</button></section></div><button type="button" class="button primary rules-back" data-view="team">Ver time atualizado ${icon('arrow')}</button>`;
   }
   function renderWar() {
     const war = state.lastWar;
@@ -206,12 +237,80 @@
     $$('nav [data-view]').forEach((node) => { if (node.dataset.view === view) node.setAttribute('aria-current', 'page'); else node.removeAttribute('aria-current'); });
     if (focus) { window.scrollTo({ top: 0, behavior: 'instant' }); $('#' + view + '-title')?.focus({ preventScroll: true }); }
   }
+  async function loadPersonalHistoryFallback() {
+    const token = ++state.historyToken;
+    state.personalWarByTag = new Map();
+    state.personalHistoryStatusByTag = new Map();
+    state.historyLookupWarning = '';
+    if (!state.settings.usePlayerHistoryFallback) {
+      state.historyLoading = false;
+      if (!state.loading) render();
+      return;
+    }
+    if (state.source !== 'worker') {
+      state.historyLoading = false;
+      state.historyLookupWarning = state.source === 'demo' ? 'O histórico pessoal não é aplicado aos dados de demonstração.' : '';
+      if (!state.loading) render();
+      return;
+    }
+    const tagsWithClanWarData = new Set((state.lastWar?.players || []).map((player) => E.normalizeTag(player.tag)));
+    const manuallyExcluded = new Set([...state.settings.blacklist, ...state.settings.forcedOut]);
+    const candidates = state.members.filter((member) =>
+      !tagsWithClanWarData.has(E.normalizeTag(member.tag))
+      && member.pref !== 'out'
+      && !manuallyExcluded.has(E.normalizeTag(member.tag))
+    );
+    if (!candidates.length) {
+      state.historyLoading = false;
+      if (!state.loading) render();
+      return;
+    }
+
+    state.historyLoading = true;
+    state.status = `Consultando histórico pessoal: 0/${candidates.length} jogadores…`;
+    if (!state.loading) render(); else renderStatus();
+    const warsByTag = new Map();
+    const statusesByTag = new Map();
+    let checked = 0;
+    let failed = 0;
+    for (let offset = 0; offset < candidates.length; offset += 3) {
+      const batch = candidates.slice(offset, offset + 3);
+      const results = await Promise.allSettled(batch.map((member) => window.ClanAPI.loadPlayerStats(member.tag)));
+      if (token !== state.historyToken || !state.settings.usePlayerHistoryFallback) return;
+      results.forEach((result, index) => {
+        const tag = E.normalizeTag(batch[index].tag);
+        if (result.status === 'rejected') {
+          statusesByTag.set(tag, 'unavailable');
+          failed += 1;
+          return;
+        }
+        const war = window.WarStats.latestCompletedRegularWar(result.value.items || []);
+        if (war) {
+          warsByTag.set(tag, war);
+          statusesByTag.set(tag, 'found');
+        } else statusesByTag.set(tag, 'none');
+      });
+      checked += batch.length;
+      state.status = `Consultando histórico pessoal: ${checked}/${candidates.length} jogadores…`;
+      renderStatus();
+    }
+    if (token !== state.historyToken || !state.settings.usePlayerHistoryFallback) return;
+    state.personalWarByTag = warsByTag;
+    state.personalHistoryStatusByTag = statusesByTag;
+    state.historyLoading = false;
+    state.status = '';
+    state.historyLookupWarning = failed
+      ? `Não foi possível consultar o histórico de ${failed} jogador(es). Sem registro verificável, eles permanecem elegíveis.`
+      : '';
+    if (!state.loading) render(); else renderStatus();
+  }
   async function loadClan(tag = state.clanTag) {
     if (state.loading) return;
     const normalized = E.normalizeTag(tag);
     if (!/^[0289PYLQGRJCUV]{3,15}$/.test(normalized)) { toast('Digite uma tag de clã válida, como #2G8QCR92V.'); return; }
     audit('clan_load_started');
     state.clanTag = normalized; state.clanName = ''; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
+    state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false; state.historyLookupWarning = '';
     state.source = ''; state.dataWarnings = []; state.fetchedAt = ''; state.error = ''; state.loading = true;
     state.status = 'Consultando membros, escudos e guerras…'; state.expanded.clear();
     render();
@@ -221,11 +320,13 @@
       state.lastWar = data.lastWar ? E.buildWar(data.lastWar) : null;
       state.currentWar = data.currentWar ? E.buildWar(data.currentWar) : null;
       state.source = 'worker'; state.fetchedAt = data.fetchedAt; state.dataWarnings = data.warnings;
+      if (state.settings.usePlayerHistoryFallback) await loadPersonalHistoryFallback();
       saveSettings(); audit('clan_load_succeeded');
     } catch (error) { state.error = error.message || 'Tente novamente em alguns instantes.'; audit('clan_load_failed'); }
     finally { state.loading = false; render(); }
   }
   async function loadDemo() {
+    state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false;
     state.loading = true; render();
     try {
       const response = await fetch('portal/demo.json', { credentials: 'omit' });
@@ -235,6 +336,7 @@
       state.members = data.members; state.lastWar = E.buildWar(data.lastWar); state.currentWar = E.buildWar(data.currentWar);
       state.clanBadgeUrl = badgeUrl(data.lastWar.result.clans[data.lastWar.result.ourSide].badgeUrls);
       state.source = 'demo'; state.fetchedAt = ''; state.error = ''; state.dataWarnings = [];
+      state.historyLookupWarning = state.settings.usePlayerHistoryFallback ? 'O histórico pessoal não é aplicado aos dados de demonstração.' : '';
       audit('demo_loaded');
     } catch (error) { state.error = error.message; }
     finally { state.loading = false; render(); }
@@ -242,8 +344,15 @@
   function handleSetting(target) {
     const key = target.dataset.setting;
     if (!Object.hasOwn(E.DEFAULT_SETTINGS, key)) return;
-    state.settings[key] = target.type === 'checkbox' ? target.checked : ['fixedSize', 'maxFill', 'maxTrim'].includes(key) ? Math.max(0, Math.min(50, Number(target.value) || 0)) : target.value;
-    saveSettings(); audit('setting_changed', { setting: key, value: state.settings[key] }); render();
+    state.settings[key] = target.type === 'checkbox' ? target.checked : target.value;
+    saveSettings(); audit('setting_changed', { setting: key, value: state.settings[key] });
+    if (key === 'usePlayerHistoryFallback') {
+      if (state.settings.usePlayerHistoryFallback) void loadPersonalHistoryFallback();
+      else {
+        state.historyToken += 1; state.historyLoading = false; state.historyLookupWarning = '';
+        state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); render();
+      }
+    } else render();
     $(`[data-setting="${key}"]`)?.focus({ preventScroll: true });
   }
   function adjustPlayer(action, tag) {
@@ -325,8 +434,8 @@
   }
   function selectionTSV() {
     if (!state.selection?.selected.length) return '';
-    const rows = [['Ordem', 'Jogador', 'Tag', 'Cargo', 'Centro da Vila', 'Escudo', 'Ataques', '1º ataque (estrelas)', '2º ataque (estrelas)', 'Estrelas', 'Novas estrelas', 'Ataques com 3 estrelas', 'Convocação']];
-    state.selection.selected.forEach((row, index) => rows.push([index + 1, row.member.name, '#' + row.member.tag, roleNames[row.member.role] || row.member.role, row.member.th, prefNames[row.member.pref], row.inWar ? row.attacks : '', row.perf?.firstAttackStars ?? '', row.perf?.secondAttackStars ?? '', row.inWar ? row.stars : '', row.inWar ? row.newStars : '', row.inWar ? row.triples : '', reason(row).label]));
+    const rows = [['Ordem', 'Jogador', 'Tag', 'Cargo', 'Centro da Vila', 'Escudo', 'Fonte do desempenho', 'Ataques', '1º ataque (estrelas)', '2º ataque (estrelas)', 'Estrelas', 'Novas estrelas', 'Ataques com 3 estrelas', 'Convocação']];
+    state.selection.selected.forEach((row, index) => rows.push([index + 1, row.member.name, '#' + row.member.tag, roleNames[row.member.role] || row.member.role, row.member.th, prefNames[row.member.pref], row.usedPersonalHistory ? 'Histórico pessoal' : row.inWar ? 'Última guerra do clã' : '', row.criteriaPerf?.attacks ?? '', row.criteriaPerf?.firstAttackStars ?? '', row.criteriaPerf?.secondAttackStars ?? '', row.criteriaPerf?.stars ?? '', row.inWar ? row.perf.newStars : '', row.criteriaPerf?.triples ?? '', reason(row).label]));
     return rows.map((row) => row.map(tsvCell).join('\t')).join('\r\n');
   }
   function fallbackCopy(text) {
