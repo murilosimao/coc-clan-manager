@@ -62,6 +62,7 @@ h3 { font-weight:600; }
 .refresh-button { width:44px; min-width:44px; height:44px; padding:0; }
 .refresh-button>span { display:none; }
 .status-banner { display:flex; align-items:center; gap:12px; border:1px solid var(--line); background:var(--surface); padding:12px 14px; margin:0 0 20px; border-radius:6px; color:var(--muted); font-size:13px; }
+.status-banner.loading { display:grid; gap:9px; }
 .status-banner.loading { color:var(--gold); border-color:#62502e; }
 .status-banner.notice { background:#26291d; }
 .status-banner.error { background:var(--red-soft); border-color:#764a3f; color:var(--red); flex-wrap:wrap; }
@@ -69,6 +70,22 @@ h3 { font-weight:600; }
 .status-banner strong { font-size:14px; color:var(--text); display:block; margin-bottom:3px; }
 .status-banner p+p { margin-top:6px; }
 .status-banner>.text-button { margin-left:auto; flex-shrink:0; font-size:12px; }
+.load-status-main { display:flex; align-items:center; gap:10px; min-width:0; }
+.load-status-main .icon { width:17px; height:17px; }
+.load-stages { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.load-stage { display:grid; grid-template-columns:14px minmax(0,1fr); align-items:center; column-gap:6px; padding:5px 7px; border:1px solid #62502e55; border-radius:4px; background:#151a13; color:var(--muted); }
+.load-stage>i { grid-row:span 2; display:grid; place-items:center; }
+.load-stage>i .icon { width:12px; height:12px; }
+.load-stage>b { font-size:10px; line-height:1.2; }
+.load-stage>small { font-size:9px; line-height:1.2; color:var(--faint); }
+.load-stage.done { color:var(--green); border-color:#49634888; }
+.load-stage.done>small { color:var(--muted); }
+.load-stage.error { color:var(--red); border-color:#764a3f88; }
+.load-stage.waiting { color:var(--muted); }
+.profile-progress { display:grid; grid-template-columns:minmax(110px,1fr) minmax(80px,2fr) auto; align-items:center; gap:9px; font-size:10px; color:var(--muted); }
+.profile-progress>i { display:block; height:4px; background:#343c2c; border-radius:5px; overflow:hidden; }
+.profile-progress>i>b { display:block; height:100%; background:var(--green); border-radius:inherit; transition:width .25s ease; }
+.profile-progress>strong { color:var(--text); font-variant-numeric:tabular-nums; }
 .spinning { animation:spin 1.3s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 .selection-hero { position:relative; display:grid; grid-template-columns:minmax(0,1fr) 65px; gap:18px 8px; border:1px solid #66532f; border-radius:9px; background:linear-gradient(115deg,#2a2c1e,#1e251b 75%); padding:20px; overflow:hidden; }
@@ -263,7 +280,88 @@ h3 { font-weight:600; }
 .war-stats>div:last-child { border:0; }
 .war-stats b { font:700 28px/1 'Barlow Condensed',sans-serif; }
 .war-stats small { font-size:18px; font-weight:700; color:var(--muted); }
+.war-stats small .icon { width:15px; height:15px; color:var(--gold); fill:var(--gold); }
 .war-stats span { margin-top:5px; font-size:9px; color:var(--muted); }
+.current-war-section { margin-bottom:18px; overflow:hidden; border:1px solid #4d613d; border-radius:8px; background:linear-gradient(130deg,#20291b,#171d14); }
+.current-war-heading { align-items:center; }
+.current-war-heading>div { min-width:0; }
+.current-war-heading h3 { margin-top:5px; overflow-wrap:anywhere; font-size:16px; }
+.current-war-heading>.tag { flex:none; }
+.current-war-section>.scoreboard-teams { padding:12px 10px; }
+.current-war-section .score-crest,.current-war-section .opponent-crest { width:32px; height:36px; margin-bottom:4px; }
+.current-war-section .opponent-crest .icon { width:30px; height:34px; }
+.current-war-section .score>b { font-size:40px; }
+.current-war-section .score { gap:5px; }
+.current-war-section .scoreboard-teams h3 { font-size:11px; }
+.current-war-section .scoreboard-teams .our-team>span,.current-war-section .scoreboard-teams .opponent-team>span:not(.opponent-crest) { margin-top:2px; font-size:8px; }
+.current-war-section>.war-stats { border-top-color:#4c5b3a; }
+.current-war-roster-heading { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; padding:12px 14px 9px; }
+.current-war-roster-heading h3 { margin-top:3px; font-size:15px; }
+.current-war-roster-heading>span { color:var(--muted); font-size:9px; text-align:right; }
+.current-war-player-list { margin:0 12px; overflow:hidden; border:1px solid var(--line); border-radius:6px; }
+.current-war-player { border-bottom:1px solid var(--line); background:var(--surface); }
+.current-war-player:last-child { border-bottom:0; }
+.current-war-player>summary { display:grid; grid-template-columns:minmax(0,1fr) auto auto 14px; gap:8px; align-items:center; min-height:48px; padding:7px 10px; list-style:none; cursor:pointer; }
+.current-war-player>summary:hover { background:#22291d; }
+.current-war-player>summary::-webkit-details-marker { display:none; }
+.current-war-player>summary:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
+.current-war-player>summary>.icon { width:15px; height:15px; color:var(--faint); transition:transform .18s ease; }
+.current-war-player[open]>summary>.icon { transform:rotate(180deg); }
+.current-war-player-name { display:flex; align-items:center; gap:7px; min-width:0; }
+.current-war-player-name>small { min-width:20px; color:var(--faint); font-size:9px; font-variant-numeric:tabular-nums; }
+.current-war-player-name>strong { min-width:0; overflow-wrap:anywhere; font-size:12px; font-weight:600; }
+.current-war-player-count,.current-war-player-stars { display:flex; flex-direction:column; align-items:flex-end; white-space:nowrap; }
+.current-war-player-count>b { font-size:11px; font-variant-numeric:tabular-nums; }
+.current-war-player-count>small,.current-war-player-stars>small { color:var(--muted); font-size:8px; }
+.current-war-player-stars>b { display:flex; align-items:center; gap:3px; color:var(--gold); font-size:12px; font-variant-numeric:tabular-nums; }
+.current-war-player-stars .icon,.current-war-hit-stars .icon { width:12px; height:12px; fill:var(--gold); }
+.current-war-player-details { border-top:1px solid var(--line); padding:6px 12px; background:#141a11; }
+.current-war-hit { display:grid; grid-template-columns:70px minmax(0,1fr) auto; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid #343c2c; }
+.current-war-hit:last-child { border-bottom:0; }
+.current-war-hit-order { color:var(--faint); font-size:10px; }
+.current-war-hit-target { min-width:0; }
+.current-war-hit-target>strong { display:block; overflow-wrap:anywhere; font-size:11px; }
+.current-war-hit-target>span,.current-war-hit-stars>span { display:block; margin-top:3px; color:var(--muted); font-size:9px; }
+.current-war-hit-stars { text-align:right; white-space:nowrap; }
+.current-war-hit-stars>b { display:flex; align-items:center; justify-content:flex-end; gap:3px; font-size:11px; }
+.current-war-no-attacks { padding:9px 0; color:var(--muted); font-size:10px; }
+.current-war-filters { margin:0 12px 7px; padding:2px; }
+.current-war-filters button { min-height:34px; padding:5px 7px; font-size:11px; }
+.current-war-filters button>span { min-width:16px; height:16px; font-size:9px; }
+.current-war-section>.report-note { margin:7px 14px 10px; font-size:9px; }
+.current-war-empty { margin:0 12px 12px; }
+.previous-war-disclosure { margin-top:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface); overflow:hidden; }
+.previous-war-disclosure>summary { display:grid; grid-template-columns:minmax(0,1fr) auto 16px; align-items:center; gap:12px; min-height:68px; padding:10px 13px; cursor:pointer; list-style:none; }
+.previous-war-disclosure>summary::-webkit-details-marker { display:none; }
+.previous-war-disclosure>summary:hover { background:var(--raised); }
+.previous-war-disclosure>summary>.icon { width:15px; height:15px; color:var(--faint); transition:transform .18s ease; }
+.previous-war-disclosure[open]>summary>.icon { transform:rotate(180deg); }
+.previous-war-summary-copy { display:flex; flex-direction:column; min-width:0; }
+.previous-war-summary-copy>.eyebrow { font-size:8px; }
+.previous-war-summary-copy>strong { margin-top:2px; font-size:13px; }
+.previous-war-summary-copy>small { overflow:hidden; color:var(--muted); font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.previous-war-summary-result { display:flex; flex-direction:column; align-items:flex-end; gap:3px; white-space:nowrap; }
+.previous-war-summary-result .tag { padding:2px 5px; font-size:8px; }
+.previous-war-summary-result>b { font:700 16px/1 'Barlow Condensed',sans-serif; color:var(--text); font-variant-numeric:tabular-nums; }
+.previous-war-content { padding:0 10px 12px; border-top:1px solid var(--line); }
+.previous-war-content>.war-scoreboard { margin-top:10px; }
+.previous-war-content>.war-scoreboard .scoreboard-teams { padding:16px 10px; }
+.previous-war-content .war-report { margin-top:18px; }
+.war-loading-card,.war-loading-history { position:relative; overflow:hidden; border:1px solid var(--line); border-radius:7px; background-color:#1a2018; }
+.war-loading-card { min-height:138px; margin-bottom:12px; padding:13px; }
+.war-loading-title { width:44%; height:10px; border-radius:4px; background:#48513d; }
+.war-loading-score { width:48%; height:42px; margin:13px auto 10px; border-radius:5px; background:#343e2d; }
+.war-loading-caption { color:var(--muted); text-align:center; font-size:10px; }
+.war-loading-history { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px; margin-top:12px; padding:12px; }
+.war-loading-history>span { width:38%; height:9px; border-radius:4px; background:#48513d; }
+.war-loading-history>i { width:54px; height:13px; border-radius:4px; background:#343e2d; }
+.war-loading-history>small { grid-column:1/-1; color:var(--muted); font-size:10px; }
+.war-empty-inline { display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:12px; border:1px solid var(--line); border-radius:6px; background:#171c15; }
+.war-empty-inline>.icon { width:17px; height:17px; color:var(--faint); }
+.war-empty-inline>span { display:flex; flex-direction:column; min-width:0; }
+.war-empty-inline strong { font-size:11px; }
+.war-empty-inline small { margin-top:2px; color:var(--muted); font-size:9px; }
+.history-empty { margin-top:12px; }
 .war-report { margin-top:28px; }
 .war-report .roster-toolbar>.search-field { max-width:none; }
 .performance-columns { display:none; }
@@ -323,9 +421,9 @@ body:has(dialog[open]) { overflow:hidden; }
 .toast { position:fixed; bottom:92px; left:16px; right:16px; z-index:50; max-width:500px; margin:auto; color:#182114; background:#dce6d0; border:1px solid #f1f6e9; border-radius:7px; box-shadow:0 10px 40px #0008; padding:14px 18px; font-size:13px; font-weight:600; }
 .clipboard-helper { position:fixed; opacity:0; left:-10000px; top:0; }
 .skeleton { background:linear-gradient(100deg,#20271b 15%,#2d3625 35%,#20271b 55%); background-size:200% 100%; animation:shimmer 1.8s ease infinite; border-radius:6px; }
-.skeleton-hero { height:244px; margin-bottom:28px; border:1px solid var(--line); }
+.skeleton-hero { height:150px; margin-bottom:18px; border:1px solid var(--line); }
 .skeleton-title { height:32px; width:200px; margin-bottom:20px; }
-.skeleton-row { height:130px; margin-bottom:10px; }
+.skeleton-row { height:54px; margin-bottom:7px; }
 @keyframes shimmer { to { background-position:-200% 0; } }
 @media (min-width:600px) {
   #main { padding-left:28px; padding-right:28px; }
@@ -359,11 +457,31 @@ body:has(dialog[open]) { overflow:hidden; }
   .war-stats b { font-size:36px; }
   .war-stats span { font-size:12px; }
   .war-report .roster-toolbar>.search-field { max-width:280px; }
+  .current-war-heading h3 { font-size:20px; }
+  .current-war-roster-heading { padding:14px 16px 10px; }
+  .current-war-player-list { margin-right:16px; margin-left:16px; }
+  .current-war-player>summary { min-height:50px; padding-right:14px; padding-left:14px; }
+  .current-war-player-name>strong { font-size:13px; }
+  .current-war-filters { margin-right:16px; margin-left:16px; }
+  .current-war-section>.report-note { margin-right:16px; margin-left:16px; }
   .attack-row { grid-template-columns:30px minmax(0,1fr) 140px 110px; gap:20px; padding:16px 20px; }
   .attack-row>.tag { grid-column:auto; justify-self:end; }
   .attack-names strong { font-size:15px; }
   .attack-result>span { font-size:11px; }
   .attack-stars .icon { width:17px; height:17px; }
+  .load-stages { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .profile-progress { grid-template-columns:150px minmax(100px,1fr) auto; }
+}
+@media (max-width:380px) {
+  .current-war-section .score-crest,.current-war-section .opponent-crest { width:26px; height:30px; }
+  .current-war-section .score>b { font-size:34px; }
+  .current-war-player>summary { grid-template-columns:minmax(0,1fr) auto auto 12px; gap:5px; padding-right:7px; padding-left:7px; }
+  .current-war-player-name { gap:4px; }
+  .current-war-player-name>small { min-width:17px; font-size:8px; }
+  .current-war-player-name>strong { font-size:11px; }
+  .current-war-player-count>b,.current-war-player-stars>b { font-size:10px; }
+  .previous-war-disclosure>summary { grid-template-columns:minmax(0,1fr) auto 13px; gap:7px; padding-right:9px; padding-left:9px; }
+  .previous-war-summary-result .tag { font-size:7px; }
 }
 @media (min-width:800px) {
   .app-header { min-height:92px; padding-top:22px; padding-bottom:22px; }
@@ -431,8 +549,8 @@ body:has(dialog[open]) { overflow:hidden; }
   .performance-details { padding-left:66px; }
   .toast { bottom:28px; left:auto; right:28px; }
   .app-footer { flex-direction:row; justify-content:space-between; margin-top:48px; font-size:11px; }
-  .skeleton-hero { height:202px; }
-  .skeleton-row { height:88px; }
+  .skeleton-hero { height:166px; }
+  .skeleton-row { height:58px; }
 }
 @media (min-width:1180px) {
   .workspace-grid { display:grid; grid-template-columns:minmax(0,1fr) 242px; gap:28px; align-items:start; }
@@ -556,3 +674,189 @@ body:has(dialog[open]) { overflow:hidden; }
   .stats-match p,.stats-match strong span { font-size:11px; }
 }
 .stats-dialog .dialog-heading { position:sticky; top:0; z-index:2; background:#1b2217; padding:8px 0 14px; margin-bottom:14px; box-shadow:0 1px 0 var(--line); }
+
+/* War report: paired clan map inspired by the in-game battle log. */
+.war-battle-card { --war-home:#438fc9; --war-away:#d14e42; margin:0 0 14px; overflow:hidden; border:1px solid #384148; border-radius:8px; background:linear-gradient(145deg,#191e22,#14181b); }
+.war-battle-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px 7px; }
+.war-battle-heading>div { min-width:0; }
+.war-battle-heading .eyebrow { font-size:8px; }
+.war-battle-heading h3 { margin-top:4px; overflow-wrap:anywhere; font-size:14px; }
+.war-battle-heading h3>span { color:var(--faint); font-size:11px; font-weight:400; }
+.war-battle-heading>.tag { flex:none; font-size:8px; }
+.war-match-score { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:14px; max-width:340px; margin:0 auto; padding:7px 12px 0; text-align:center; }
+.war-match-score>b { color:var(--war-home); font:700 38px/.95 'Barlow Condensed',sans-serif; font-variant-numeric:tabular-nums; }
+.war-match-score>b:last-child { color:var(--war-away); }
+.war-match-score span>.icon { width:23px; height:23px; color:#f0cc58; fill:#f0cc58; }
+.war-match-score span>.icon.filled { fill:#f0cc58; }
+.war-match-teams { display:grid; grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr); align-items:center; gap:6px; padding:5px 14px 12px; border-bottom:1px solid #303941; }
+.war-match-team { display:flex; align-items:center; gap:8px; min-width:0; }
+.war-match-team--away { justify-content:flex-end; text-align:right; }
+.war-match-team>div { min-width:0; }
+.war-match-team strong { display:block; overflow:hidden; color:#e6e8e7; font-size:11px; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
+.war-match-team small { display:block; margin-top:3px; color:#a0a9ad; font-size:8px; white-space:nowrap; }
+.war-match-team .score-crest,.war-match-team .opponent-crest { width:29px; height:33px; margin:0; }
+.war-match-team .opponent-crest .icon { width:27px; height:30px; }
+.war-match-divider { display:grid; place-items:center; color:#a3adb1; }
+.war-match-divider .icon { width:16px; height:16px; }
+.war-outcome { flex:none; color:#8ed1a1; font-size:8px; font-weight:700; text-transform:uppercase; }
+.war-outcome--loss { color:#e37c70; }
+.war-attack-usage { display:grid; grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr); align-items:center; gap:8px; padding:11px 14px 1px; }
+.war-usage-side { min-width:0; }
+.war-usage-side>span { display:block; margin-bottom:5px; color:#b5bec0; font-size:9px; font-variant-numeric:tabular-nums; }
+.war-usage-side>span>b { color:#e4e8e6; font-size:11px; }
+.war-usage-side>i { display:flex; height:6px; overflow:hidden; border:1px solid currentColor; background:#111518; }
+.war-usage-side>i>b { display:block; height:100%; background:var(--war-home); }
+.war-usage-side--home { color:var(--war-home); }
+.war-usage-side--away { color:var(--war-away); text-align:right; }
+.war-usage-side--away>i>b { margin-left:auto; background:var(--war-away); }
+.war-usage-icon { display:grid; place-items:center; color:#a6afb1; }
+.war-usage-icon .icon { width:16px; height:16px; }
+.war-usage-caption { margin:4px 14px 0; color:#879295; text-align:center; font-size:8px; }
+.war-map { margin-top:12px; border-top:1px solid #303941; }
+.war-map-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 12px 8px; }
+.war-map-title { min-width:0; }
+.war-map-title .eyebrow { font-size:8px; }
+.war-map-title h4 { margin-top:2px; font-size:14px; }
+.war-map-title>small { display:block; margin-top:2px; color:#98a1a3; font-size:9px; }
+.war-map-search { width:min(100%,230px); min-height:38px; padding:0 9px; }
+.war-map-search .icon { width:15px; height:15px; }
+.war-map-search input { padding:8px 0; font-size:13px; }
+.war-map-filters { width:max-content; max-width:calc(100% - 24px); min-width:0; margin:0 12px 8px; padding:2px; }
+.war-map-filters button { min-height:32px; padding:5px 8px; font-size:10px; }
+.war-map-filters button>span { min-width:16px; height:16px; font-size:8px; }
+.war-map-list { margin:0 10px 10px; overflow:hidden; border:1px solid #303941; border-radius:5px; background:#111619; }
+.war-base-pair { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); border-bottom:1px solid #313a40; }
+.war-base-pair:last-child { border-bottom:0; }
+.war-base-side { min-width:0; padding:7px 9px 5px; }
+.war-base-side--home { border-right:1px solid #313a40; }
+.war-side-head { display:grid; grid-template-columns:21px 30px minmax(0,1fr) auto; align-items:center; gap:6px; min-height:37px; padding-bottom:5px; border-bottom:2px solid var(--war-home); }
+.war-side-head--away { direction:rtl; border-bottom-color:var(--war-away); }
+.war-side-head--away .war-player-name { direction:ltr; text-align:right; }
+.war-side-head--empty { grid-template-columns:21px minmax(0,1fr); }
+.war-position { display:grid; place-items:center; width:21px; height:21px; border-radius:50%; background:var(--war-home); color:#f3f7f8; font-size:9px; font-weight:700; font-variant-numeric:tabular-nums; }
+.war-side-head--away .war-position { background:var(--war-away); }
+.war-player-name { min-width:0; overflow:hidden; color:#e3e6e6; font-size:11px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+.war-side-head .th-badge.has-image { width:30px; height:33px; }
+.war-side-head .th-badge.has-image>img { width:30px; height:30px; }
+.war-side-head .th-badge .th-level { right:0; bottom:0; min-width:12px; height:12px; font-size:8px; }
+.war-side-head .th-badge:not(.has-image) { width:28px; height:30px; }
+.war-side-head .th-badge:not(.has-image) b { font-size:16px; }
+.war-player-star-pair { display:flex; align-items:center; gap:6px; direction:ltr; }
+.war-star-set { display:inline-flex; align-items:center; justify-content:flex-end; gap:1px; white-space:nowrap; }
+.war-star-set .icon { width:12px; height:12px; color:currentColor; }
+.war-star-set .icon.unfilled { opacity:.55; }
+.war-star-set .icon.filled { fill:currentColor; }
+.war-star-set.stars-1 { color:#e18448; }
+.war-star-set.stars-2 { color:#efbd53; }
+.war-star-set.stars-3 { color:#6bc99c; }
+.war-star-set.stars-0 { color:#778186; }
+.war-side-hits { padding-top:2px; }
+.war-hit { display:grid; grid-template-columns:17px minmax(0,1fr) auto; align-items:center; gap:5px; min-height:39px; padding:5px 0; border-bottom:1px solid #252d32; }
+.war-hit:last-child { border-bottom:0; }
+.war-hit-order { align-self:start; padding-top:4px; color:#879295; font-size:8px; font-variant-numeric:tabular-nums; }
+.war-hit-target { display:flex; align-items:center; gap:5px; min-width:0; }
+.war-hit-target>small { display:grid; place-items:center; flex:none; min-width:16px; height:16px; padding:0 3px; border-radius:50%; background:#37434a; color:#c8d0d0; font-size:8px; font-weight:700; }
+.war-hit-target-rank--home { background:#327ab0; color:#f3f7f8; }
+.war-hit-target-rank--away { background:#b63f35; color:#fff1ef; }
+.war-hit-target>strong { min-width:0; overflow:hidden; color:#d0d5d5; font-size:9px; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
+.war-hit-result { display:flex; flex-direction:column; align-items:flex-end; gap:2px; white-space:nowrap; }
+.war-hit-result>.war-star-set .icon { width:10px; height:10px; }
+.war-hit-result>span:last-child { color:#a4adaf; font-size:8px; font-variant-numeric:tabular-nums; }
+.war-hit-result>span:last-child>i { color:#657074; font-style:normal; }
+.war-hit-impact { grid-column:2/4; justify-self:end; color:#a7b1b1; font-size:7px; line-height:1.1; }
+.war-hit-impact.cleanup { color:#e1b75c; }
+.war-no-hits { padding:8px 0; color:#778286; font-size:9px; }
+.war-map-empty { display:flex; align-items:center; justify-content:center; gap:8px; min-height:84px; padding:18px; color:#9aa4a6; text-align:center; font-size:11px; }
+.war-map-empty .icon { width:17px; height:17px; color:#d6b45d; }
+.previous-war-actions { display:flex; justify-content:flex-end; padding:10px 0 0; }
+.previous-war-actions .button { min-height:36px; padding:7px 10px; font-size:11px; }
+.previous-war-content>.war-battle-card { margin-top:10px; }
+@media (min-width:600px) {
+  .war-battle-heading { padding:15px 18px 8px; }
+  .war-battle-heading .eyebrow { font-size:9px; }
+  .war-battle-heading h3 { font-size:17px; }
+  .war-match-score { max-width:410px; padding-top:8px; }
+  .war-match-score>b { font-size:48px; }
+  .war-match-teams { padding:7px 24px 15px; }
+  .war-match-team { gap:11px; }
+  .war-match-team strong { font-size:14px; }
+  .war-match-team small { font-size:10px; }
+  .war-match-team .score-crest,.war-match-team .opponent-crest { width:38px; height:43px; }
+  .war-match-team .opponent-crest .icon { width:36px; height:40px; }
+  .war-outcome { font-size:9px; }
+  .war-attack-usage { padding:13px 24px 1px; }
+  .war-usage-side>span { font-size:10px; }
+  .war-usage-side>span>b { font-size:13px; }
+  .war-map-toolbar { padding:15px 16px 9px; }
+  .war-map-title h4 { font-size:16px; }
+  .war-map-filters { margin-left:16px; }
+  .war-map-list { margin-right:14px; margin-left:14px; }
+  .war-base-side { padding:9px 13px 6px; }
+  .war-side-head { grid-template-columns:25px 36px minmax(0,1fr) auto; gap:8px; min-height:43px; }
+  .war-position { width:25px; height:25px; font-size:10px; }
+  .war-player-name { font-size:14px; }
+  .war-side-head .th-badge.has-image { width:36px; height:39px; }
+  .war-side-head .th-badge.has-image>img { width:36px; height:36px; }
+  .war-side-head .th-badge:not(.has-image) { width:34px; height:36px; }
+  .war-side-head .th-badge:not(.has-image) b { font-size:19px; }
+  .war-player-star-pair { gap:8px; }
+  .war-star-set .icon { width:16px; height:16px; }
+  .war-hit { grid-template-columns:22px minmax(0,1fr) auto; gap:7px; min-height:44px; }
+  .war-hit-order { font-size:9px; }
+  .war-hit-target>strong { font-size:12px; }
+  .war-hit-target>small { min-width:19px; height:19px; font-size:9px; }
+  .war-hit-result>.war-star-set .icon { width:12px; height:12px; }
+  .war-hit-result>span:last-child { font-size:10px; }
+  .war-hit-impact { font-size:9px; }
+}
+@media (max-width:599px) {
+  .war-battle-card { border-radius:6px; }
+  .war-battle-heading { align-items:flex-start; padding:11px 11px 6px; }
+  .war-battle-heading h3 { font-size:12px; }
+  .war-battle-heading>.tag { padding:4px 5px; font-size:7px; }
+  .war-match-score { gap:10px; padding-top:7px; }
+  .war-match-score>b { font-size:34px; }
+  .war-match-score>.icon { width:19px; height:19px; }
+  .war-match-teams { grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr); gap:3px; padding:5px 9px 10px; }
+  .war-match-team { gap:5px; }
+  .war-match-team--away { gap:5px; }
+  .war-match-team strong { font-size:9px; }
+  .war-match-team small { font-size:7px; }
+  .war-match-team .score-crest,.war-match-team .opponent-crest { width:23px; height:27px; }
+  .war-match-team .opponent-crest .icon { width:22px; height:25px; }
+  .war-match-divider .icon { width:13px; height:13px; }
+  .war-outcome { display:none; }
+  .war-attack-usage { grid-template-columns:minmax(0,1fr) 17px minmax(0,1fr); gap:5px; padding:9px 10px 1px; }
+  .war-usage-side>span { font-size:8px; }
+  .war-usage-side>span>b { font-size:10px; }
+  .war-usage-side>i { height:5px; }
+  .war-usage-icon .icon { width:13px; height:13px; }
+  .war-usage-caption { font-size:7px; }
+  .war-map { margin-top:10px; }
+  .war-map-toolbar { display:grid; grid-template-columns:1fr; gap:8px; padding:10px 10px 8px; }
+  .war-map-title { display:grid; grid-template-columns:1fr auto; align-items:center; column-gap:8px; }
+  .war-map-title .eyebrow { grid-column:1/-1; }
+  .war-map-title h4 { font-size:13px; }
+  .war-map-title>small { margin:0; text-align:right; }
+  .war-map-search { width:100%; min-height:38px; }
+  .war-map-filters { width:calc(100% - 20px); max-width:none; margin:0 10px 7px; }
+  .war-map-filters button { gap:4px; padding:4px; font-size:9px; }
+  .war-map-filters button>span { min-width:14px; height:14px; }
+  .war-map-list { margin:0 8px 8px; }
+  .war-base-pair { grid-template-columns:minmax(0,1fr); }
+  .war-base-side { padding:7px 9px 5px; }
+  .war-base-side--home { border-right:0; border-bottom:1px solid #303941; }
+  .war-side-head { grid-template-columns:21px 28px minmax(0,1fr); grid-template-rows:auto auto; gap:4px 6px; min-height:0; padding-bottom:5px; }
+  .war-side-head--away { direction:rtl; }
+  .war-player-name { font-size:11px; }
+  .war-player-star-pair { grid-column:1/-1; justify-content:center; gap:12px; padding:1px 0; }
+  .war-star-set .icon { width:12px; height:12px; }
+  .war-side-head .th-badge.has-image { width:28px; height:31px; }
+  .war-side-head .th-badge.has-image>img { width:28px; height:28px; }
+  .war-side-head .th-badge:not(.has-image) { width:27px; height:29px; }
+  .war-side-head .th-badge:not(.has-image) b { font-size:16px; }
+  .war-side-hits { padding-top:1px; }
+  .war-hit { grid-template-columns:19px minmax(0,1fr) auto; min-height:36px; padding:4px 0; }
+  .war-hit-target>strong { font-size:10px; }
+  .war-hit-impact { font-size:7px; }
+}

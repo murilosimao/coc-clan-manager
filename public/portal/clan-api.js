@@ -55,80 +55,130 @@
     } finally { clearTimeout(timer); }
   }
 
-  async function loadClan(clanTag, { onStatus = () => {} } = {}) {
+  async function loadClan(clanTag, { onStatus = () => {}, onProgress = () => {}, onData = () => {} } = {}) {
     const tag = tagOf(clanTag);
     if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag)) throw new Error('Digite uma tag válida do Clash of Clans, por exemplo #2G8QCR92V.');
-    onStatus('Consultando membros, escudos e guerras...');
-    const results = await Promise.allSettled([
-      request(pathFor(tag)), request(pathFor(tag) + '/wars'), request(pathFor(tag) + '/currentwar'),
-    ]);
-    if (results[0].status !== 'fulfilled') throw results[0].reason;
-    const clan = results[0].value;
-    if (tagOf(clan.tag) !== tag || !Array.isArray(clan.memberList)) throw new Error('Não foi possível obter os membros deste clã.');
-    const members = clan.memberList.map((member) => ({
-      tag: tagOf(member.tag), name: member.name,
-      th: Number.isFinite(Number(member.townHallLevel)) ? Number(member.townHallLevel) : null,
-      clanRank: Number.isFinite(Number(member.clanRank)) ? Number(member.clanRank) : null,
-      position: Number.isFinite(Number(member.clanRank)) ? Number(member.clanRank) : null,
-      trophies: member.trophies != null && Number.isFinite(Number(member.trophies)) ? Number(member.trophies) : null,
-      role: roles[member.role] || '', pref: 'unknown', prefSource: 'unavailable', prefConfirmedAt: null,
-    }));
+    const stages = { clan: 'loading', currentWar: 'loading', history: 'loading', profiles: 'waiting' };
+    const profiles = { done: 0, total: 0 };
     const warnings = [];
-    let next = 0;
-    let checked = 0;
-    const batches = chunk(members, 5);
-    // Two batches at a time, five players each; each Worker uses at most three
-    // outgoing connections and five external requests, well below Free limits.
-    await Promise.all(Array.from({ length: Math.min(2, batches.length) }, async () => {
-      while (next < batches.length) {
-        const batch = batches[next++];
-        try {
-          const query = new URLSearchParams({ tags: batch.map((member) => '#' + member.tag).join(',') });
-          const data = await request('/api/players?' + query);
-          const byTag = new Map((data.items || []).map((player) => [tagOf(player.tag), player]));
-          for (const member of batch) {
-            const player = byTag.get(member.tag);
-            // A departed player's current preference must not be attributed to
-            // their old clan membership from a separately cached clan profile.
-            if (player && !player.error && tagOf(player.clan?.tag) === tag) {
-              member.pref = ['in', 'out'].includes(player.warPreference) ? player.warPreference : 'unknown';
-              member.prefSource = member.pref === 'unknown' ? 'unavailable' : 'profile-api';
-              member.prefConfirmedAt = player.fetchedAt || null;
-              member.role = roles[player.role] || member.role;
-              if (Number.isFinite(Number(player.townHallLevel))) member.th = Number(player.townHallLevel);
-            }
-          }
-        } catch { /* A failed batch stays unknown, never in or out by inference. */ }
-        checked += batch.length;
-        onStatus(`Consultando escudos: ${checked}/${members.length} jogadores...`);
-      }
-    }));
-    const unknown = members.filter((member) => member.pref === 'unknown').length;
-    if (unknown) warnings.push(`${unknown} perfis sem escudo confirmado. Eles permanecem elegíveis; somente escudo vermelho bloqueia.`);
+    const emitProgress = () => onProgress({ stages: { ...stages }, profiles: { ...profiles } });
+    const setStage = (name, value) => { stages[name] = value; emitProgress(); };
+    const addWarning = (message) => {
+      if (!warnings.includes(message)) warnings.push(message);
+      onData({ type: 'warnings', warnings: [...warnings] });
+    };
+    onStatus('Consultando clã e guerras...');
+    emitProgress();
 
+    let clan;
+    let members = [];
     let lastWar = null;
     let currentWar = null;
-    if (results[1].status === 'fulfilled' && Array.isArray(results[1].value.items)) {
-      const wars = results[1].value.items;
-      const latest = wars.filter((war) => war.state === 'warEnded' && timestamp(war.endTime) <= Date.now())
-        .sort((a, b) => timestamp(b.endTime) - timestamp(a.endTime))[0];
-      if (latest) {
-        const war = normalizeWar(latest, tag);
-        if (war.sourceComplete) lastWar = war;
-        else warnings.push('A última guerra armazenada está incompleta. Seu desempenho não foi usado na seleção.');
-      } else warnings.push('Nenhuma guerra concluída disponível no histórico.');
-    } else warnings.push('O histórico de guerras não pôde ser consultado.');
-    if (results[2].status === 'fulfilled') {
-      const current = results[2].value;
-      if (['inWar', 'preparation'].includes(current.state) && timestamp(current.endTime) > Date.now()) {
-        currentWar = normalizeWar(current, tag);
-        currentWar.source = 'profile-api';
-        // A completed current war is more recent than an outdated history feed.
-      } else if (current.state === 'warEnded' && (!lastWar || timestamp(current.endTime) > timestamp(lastWar.endTime))) {
-        const ended = normalizeWar(current, tag);
-        if (ended.sourceComplete) { lastWar = ended; lastWar.source = 'profile-api'; }
+
+    const publishLastWar = (candidate) => {
+      if (!candidate || (lastWar && timestamp(lastWar.endTime) >= timestamp(candidate.endTime))) return false;
+      lastWar = candidate;
+      onData({ type: 'lastWar', lastWar });
+      return true;
+    };
+
+    const clanTask = (async () => {
+      try {
+        clan = await request(pathFor(tag));
+        if (tagOf(clan.tag) !== tag || !Array.isArray(clan.memberList)) throw new Error('Não foi possível obter os membros deste clã.');
+        members = clan.memberList.map((member) => ({
+          tag: tagOf(member.tag), name: member.name,
+          th: Number.isFinite(Number(member.townHallLevel)) ? Number(member.townHallLevel) : null,
+          clanRank: Number.isFinite(Number(member.clanRank)) ? Number(member.clanRank) : null,
+          position: Number.isFinite(Number(member.clanRank)) ? Number(member.clanRank) : null,
+          trophies: member.trophies != null && Number.isFinite(Number(member.trophies)) ? Number(member.trophies) : null,
+          role: roles[member.role] || '', pref: 'unknown', prefSource: 'unavailable', prefConfirmedAt: null,
+        }));
+        onData({ type: 'clan', clan });
+        setStage('clan', 'done');
+        profiles.total = members.length;
+        setStage('profiles', members.length ? 'loading' : 'done');
+
+        let next = 0;
+        const batches = chunk(members, 5);
+        // Two batches at a time, five players each; each Worker uses at most three
+        // outgoing connections and five external requests, well below Free limits.
+        await Promise.all(Array.from({ length: Math.min(2, batches.length) }, async () => {
+          while (next < batches.length) {
+            const batch = batches[next++];
+            try {
+              const query = new URLSearchParams({ tags: batch.map((member) => '#' + member.tag).join(',') });
+              const data = await request('/api/players?' + query);
+              const byTag = new Map((data.items || []).map((player) => [tagOf(player.tag), player]));
+              for (const member of batch) {
+                const player = byTag.get(member.tag);
+                // Do not attribute a departed player's current preference to an old clan membership.
+                if (player && !player.error && tagOf(player.clan?.tag) === tag) {
+                  member.pref = ['in', 'out'].includes(player.warPreference) ? player.warPreference : 'unknown';
+                  member.prefSource = member.pref === 'unknown' ? 'unavailable' : 'profile-api';
+                  member.prefConfirmedAt = player.fetchedAt || null;
+                  member.role = roles[player.role] || member.role;
+                  if (Number.isFinite(Number(player.townHallLevel))) member.th = Number(player.townHallLevel);
+                }
+              }
+            } catch { /* Failed profiles remain unknown, never in or out by inference. */ }
+            profiles.done += batch.length;
+            onStatus(`Consultando escudos: ${profiles.done}/${profiles.total} jogadores...`);
+            emitProgress();
+          }
+        }));
+        setStage('profiles', 'done');
+        const unknown = members.filter((member) => member.pref === 'unknown').length;
+        if (unknown) addWarning(`${unknown} perfis sem escudo confirmado. Eles permanecem elegíveis; somente escudo vermelho bloqueia.`);
+        return members;
+      } catch (error) {
+        setStage('clan', 'error');
+        throw error;
       }
-    } else warnings.push('Não foi possível consultar a guerra atual.');
+    })();
+
+    const historyTask = (async () => {
+      try {
+        const data = await request(pathFor(tag) + '/wars');
+        const wars = Array.isArray(data.items) ? data.items : [];
+        const latest = wars.filter((war) => war.state === 'warEnded' && timestamp(war.endTime) <= Date.now())
+          .sort((a, b) => timestamp(b.endTime) - timestamp(a.endTime))[0];
+        let published = false;
+        if (latest) {
+          const normalized = normalizeWar(latest, tag);
+          if (normalized.sourceComplete) published = publishLastWar(normalized);
+          else addWarning('A última guerra armazenada está incompleta. Seu desempenho não foi usado na seleção.');
+        } else addWarning('Nenhuma guerra concluída disponível no histórico.');
+        if (!published) onData({ type: 'lastWar', lastWar });
+        setStage('history', 'done');
+      } catch {
+        addWarning('O histórico de guerras não pôde ser consultado.');
+        onData({ type: 'lastWar', lastWar });
+        setStage('history', 'error');
+      }
+    })();
+
+    const currentWarTask = (async () => {
+      try {
+        const current = await request(pathFor(tag) + '/currentwar');
+        if (['inWar', 'preparation'].includes(current.state) && timestamp(current.endTime) > Date.now()) {
+          currentWar = normalizeWar(current, tag);
+          currentWar.source = 'profile-api';
+        } else if (current.state === 'warEnded') {
+          const ended = normalizeWar(current, tag);
+          if (ended.sourceComplete) { ended.source = 'profile-api'; publishLastWar(ended); }
+        }
+        onData({ type: 'currentWar', currentWar });
+        setStage('currentWar', 'done');
+      } catch {
+        addWarning('Não foi possível consultar a guerra atual.');
+        onData({ type: 'currentWar', currentWar: null });
+        setStage('currentWar', 'error');
+      }
+    })();
+
+    const [clanResult] = await Promise.allSettled([clanTask, historyTask, currentWarTask]);
+    if (clanResult.status !== 'fulfilled') throw clanResult.reason;
     return {
       clan, members, lastWar, currentWar, warnings,
       fetchedAt: new Date().toISOString(), profileFetchedAt: clan.fetchedAt,

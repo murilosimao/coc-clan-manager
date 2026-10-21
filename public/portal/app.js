@@ -10,14 +10,14 @@
   const storageKey = 'clashspot-war-selector-v1';
   const roleNames = { Leader: 'Líder', 'Co-leader': 'Colíder', Elder: 'Ancião', Member: 'Membro' };
   const prefNames = { in: 'Disponível', out: 'Fora da guerra', unknown: 'Sem confirmação' };
-  const viewTitles = { team: 'Time de guerra', rules: 'Critérios', war: 'Última guerra' };
+  const viewTitles = { team: 'Time de guerra', rules: 'Critérios', war: 'Guerras' };
   const state = {
     clanTag: E.DEFAULT_CLAN, clanName: '', clanBadgeUrl: '', members: [], lastWar: null, currentWar: null,
     settings: structuredClone(E.DEFAULT_SETTINGS), selection: null, source: '', fetchedAt: '',
-    dataWarnings: [], loading: false, status: '', error: '', view: 'team', filter: 'selected',
+    dataWarnings: [], loading: false, status: '', error: '', loadStages: null, memberProgress: null, view: 'team', filter: 'selected',
     personalWarByTag: new Map(), personalHistoryStatusByTag: new Map(), historyLoading: false,
     historyLookupWarning: '', historyToken: 0,
-    query: '', warQuery: '', warTab: 'players', expanded: new Set(), advancedOpen: false,
+    query: '', warQuery: '', currentWarFilter: 'all', expanded: new Set(), previousWarExpanded: false, advancedOpen: false,
   };
   const statsState = { tag: '', name: '', type: 'random', data: null, loading: false, error: '', token: 0, cache: new Map() };
   let statsOpener;
@@ -129,7 +129,19 @@
     node.hidden = !state.loading && !state.historyLoading && !state.error && !state.dataWarnings.length && !state.historyLookupWarning && state.source !== 'demo';
     node.className = 'status-banner ' + (state.error ? 'error' : state.loading || state.historyLoading ? 'loading' : 'notice');
     if (state.error) node.innerHTML = `${icon('alert')}<div><strong>Não foi possível atualizar o clã</strong><p>${esc(state.error)}</p></div><button type="button" class="button secondary" data-command="refresh">Tentar de novo</button>`;
-    else if (state.loading || state.historyLoading) node.innerHTML = `${icon('refresh', 'spinning')}<span>${esc(state.status || 'Consultando membros, escudos e guerras…')}</span>`;
+    else if (state.loading || state.historyLoading) {
+      const progress = state.memberProgress;
+      const stages = state.loadStages || {};
+      const stageLabels = { clan: 'Clã', profiles: 'Escudos', currentWar: 'Guerra atual', history: 'Histórico' };
+      const stageStateLabels = { loading: 'Consultando', waiting: 'Na fila', done: 'Pronto', error: 'Falhou' };
+      const stageMarkup = state.loading ? `<div class="load-stages" aria-label="Progresso das consultas">${Object.entries(stageLabels).map(([key, label]) => {
+        const status = stages[key] || 'waiting';
+        const detail = key === 'profiles' && progress?.total ? `${progress.done}/${progress.total}` : (stageStateLabels[status] || status);
+        return `<span class="load-stage ${esc(status)}"><i>${status === 'done' ? icon('check') : status === 'error' ? icon('alert') : icon('refresh', status === 'loading' ? 'spinning' : '')}</i><b>${label}</b><small>${esc(detail)}</small></span>`;
+      }).join('')}</div>` : '';
+      const profileProgress = state.loading && progress?.total ? `<div class="profile-progress" role="progressbar" aria-label="Perfis de jogadores consultados" aria-valuemin="0" aria-valuemax="${progress.total}" aria-valuenow="${progress.done}"><span>Escudos dos jogadores</span><i><b style="width:${Math.min(100, progress.done / progress.total * 100)}%"></b></i><strong>${progress.done}/${progress.total}</strong></div>` : '';
+      node.innerHTML = `<div class="load-status-main">${icon('refresh', 'spinning')}<span>${esc(state.status || 'Consultando membros e guerras…')}</span></div>${stageMarkup}${profileProgress}`;
+    }
     else if (state.source === 'demo') node.innerHTML = `${icon('flag')}<span>Você está explorando uma demonstração de 20/10/2026.</span><button type="button" class="text-button" data-command="refresh">Usar dados atuais</button>`;
     else node.innerHTML = `${icon('alert')}<div>${[...state.dataWarnings, state.historyLookupWarning].filter(Boolean).map((warning) => `<p>${esc(warning)}</p>`).join('')}</div>`;
   }
@@ -167,7 +179,7 @@
     const s = state.selection;
     const current = state.currentWar;
     const rules = ['Tamanho padrão calculado pelos escudos verdes disponíveis', 'Jogadores com registro: 2 ataques e ao menos 1 estrela', 'Sem registro não significa exclusão', 'Reforços por troféus e ranking; escudo vermelho só como última opção'];
-    return `<aside class="summary-rail" aria-label="Contexto da seleção"><section class="rail-block"><div class="rail-title">${icon('sliders')}Critérios ativos</div><ul class="active-rules">${rules.map((label) => `<li>${icon('check')}${label}</li>`).join('')}</ul><button type="button" class="button secondary full" data-view="rules">Ver critérios ${icon('arrow')}</button></section><section class="rail-block current-war"><div class="rail-title">${icon('swords')}Guerra atual</div><strong>${current ? `${current.header.sizeHome} × ${current.header.sizeAway}` : 'Sem dados atuais'}</strong><p>${current ? esc(current.result.label?.toLowerCase() || 'Em andamento') : 'A fonte não informou uma guerra atual.'}</p><button type="button" class="text-button" data-view="war">Ver última guerra ${icon('arrow')}</button></section>${s.warnings.length ? `<section class="rail-block selection-notes"><div class="rail-title">${icon('alert')}Sobre este time</div>${s.warnings.map((w) => `<p>${esc(w)}</p>`).join('')}</section>` : ''}<div class="rail-note">Desempenho da última guerra concluída. As preferências são consultadas no perfil de cada jogador.</div></aside>`;
+    return `<aside class="summary-rail" aria-label="Contexto da seleção"><section class="rail-block"><div class="rail-title">${icon('sliders')}Critérios ativos</div><ul class="active-rules">${rules.map((label) => `<li>${icon('check')}${label}</li>`).join('')}</ul><button type="button" class="button secondary full" data-view="rules">Ver critérios ${icon('arrow')}</button></section><section class="rail-block current-war"><div class="rail-title">${icon('swords')}Guerra atual</div><strong>${current ? `${current.header.sizeHome} × ${current.header.sizeAway}` : 'Sem dados atuais'}</strong><p>${current ? esc(current.result.label?.toLowerCase() || 'Em andamento') : 'A fonte não informou uma guerra atual.'}</p><button type="button" class="text-button" data-view="war">Ver relatório ${icon('arrow')}</button></section>${s.warnings.length ? `<section class="rail-block selection-notes"><div class="rail-title">${icon('alert')}Sobre este time</div>${s.warnings.map((w) => `<p>${esc(w)}</p>`).join('')}</section>` : ''}<div class="rail-note">Desempenho da última guerra concluída. As preferências são consultadas no perfil de cada jogador.</div></aside>`;
   }
   function filteredRows() {
     const s = state.selection;
@@ -212,30 +224,136 @@
       <section class="settings-panel"><div class="panel-heading"><span class="section-index">02</span><div><h3>Fechar o tamanho da guerra</h3><p>O tamanho padrão é calculado pelos jogadores com escudo verde.</p></div></div><div class="fields-grid">${selectField('rankBy', 'Ordenar a lista por', [['activity', 'Atividade: troféus e ranking'], ['position', 'Posição no clã'], ['th', 'Centro da Vila mais alto'], ['performance', 'Desempenho na última guerra'], ['name', 'Nome do jogador']], state.loading, 'A opção de atividade prioriza troféus e posição no clã. O CV não define essa ordem.')}</div><p class="settings-note">${icon('alert')}Times válidos têm 5, 10, 15… até 50 jogadores. Ex.: 36/37 disponíveis viram 35; 38/39 viram 40. Ao completar, entram os próximos reforços pela atividade do clã (troféus e ranking), sem priorizar CV. Escudos vermelhos só entram por último se ainda houver vagas. Bloqueios manuais sempre valem.</p></section>
       <section class="settings-panel priority-panel"><div class="panel-heading"><span class="section-index">03</span><div><h3>A palavra final é sua.</h3><p>Priorize ou bloqueie jogadores nos detalhes da lista.</p></div></div><div class="priority-counts"><span><b>${state.settings.whitelist.length}</b> na prioridade</span><span><b>${state.settings.blacklist.length}</b> bloqueados</span></div><p class="muted">A lista de prioridade pode superar critérios de desempenho, mas não remove bloqueios manuais. Escudos vermelhos só podem entrar pela regra de última opção para fechar uma guerra arredondada para cima. As listas de prioridade existentes são preservadas nas atualizações.</p><button type="button" class="button secondary" data-command="all-players">Gerenciar jogadores ${icon('arrow')}</button></section></div><button type="button" class="button primary rules-back" data-view="team">Ver time atualizado ${icon('arrow')}</button>`;
   }
-  function renderWar() {
-    const war = state.lastWar;
-    if (!war) {
-      $('#war-view').innerHTML = `<div class="view-heading"><div class="eyebrow">RELATÓRIO DE BATALHA</div><h2 id="war-title" tabindex="-1">Última guerra</h2></div><div class="empty-state">${icon('swords')}<h3>Histórico indisponível</h3><p>${state.loading ? 'Consultando as guerras do clã…' : 'Nenhuma guerra concluída e completa foi retornada pela fonte. Atualize os dados para tentar novamente.'}</p></div>`;
-      return;
+  function warStarSet(value, label) {
+    const stars = Math.max(0, Math.min(3, Number(value) || 0));
+    return `<span class="war-star-set stars-${stars}" role="img" aria-label="${esc(label)}">${[1, 2, 3].map((n) => icon('star', n <= stars ? 'filled' : 'unfilled')).join('')}</span>`;
+  }
+  function warAttackList(attacks, identities, targetSide) {
+    if (!attacks.length) return '<p class="war-no-hits">Ainda sem ataques</p>';
+    return attacks.map((attack, index) => {
+      const impact = attack.newStars === 0 && attack.stars > 0 ? 'Limpeza' : `+${attack.newStars} no placar`;
+      const target = identities.get(E.normalizeTag(attack.defender.tag)) || attack.defender;
+      return `<article class="war-hit"><span class="war-hit-order">${index + 1}º</span><span class="war-hit-target"><small class="war-hit-target-rank war-hit-target-rank--${targetSide}">#${esc(target.position ?? '—')}</small><strong>${esc(target.name || 'Alvo desconhecido')}</strong></span><span class="war-hit-result">${warStarSet(attack.stars, `${attack.stars} estrelas`)}<span>${E.fmtPct(attack.destruction)} <i>·</i> ${esc(attack.duration || '—')}</span></span><small class="war-hit-impact ${attack.newStars === 0 && attack.stars > 0 ? 'cleanup' : ''}">${impact}</small></article>`;
+    }).join('');
+  }
+  function warMapRows(war) {
+    const ours = war.result.ourSide || 1;
+    const theirs = war.result.opponentSide || (ours === 1 ? 2 : 1);
+    const sides = {
+      home: { number: ours, players: war.roster || war.players || [] },
+      away: { number: theirs, players: war.opponentRoster || [] },
+    };
+    const attacks = new Map([[ours, new Map()], [theirs, new Map()]]);
+    for (const attack of war.attacks || [...(war.ourAttacks || []), ...(war.opponentAttacks || [])]) {
+      const sideMap = attacks.get(attack.side);
+      if (!sideMap) continue;
+      const tag = E.normalizeTag(attack.attacker.tag);
+      if (!sideMap.has(tag)) sideMap.set(tag, []);
+      sideMap.get(tag).push(attack);
     }
-    const ours = war.result.ourSide || 1; const theirs = war.result.opponentSide || 2;
-    const resultTone = war.result.state === 'win' ? 'green' : war.result.state === 'lose' ? 'red' : 'gold';
+    for (const sideMap of attacks.values()) for (const list of sideMap.values()) list.sort((a, b) => a.order - b.order);
+
+    const maxPosition = (players) => Math.max(0, ...players.map((player) => Number(player.position) || 0));
+    const total = Math.max(Number(war.header.sizeHome) || 0, Number(war.header.sizeAway) || 0, maxPosition(sides.home.players), maxPosition(sides.away.players));
+    const homeByPosition = new Map(sides.home.players.map((player) => [Number(player.position), player]));
+    const awayByPosition = new Map(sides.away.players.map((player) => [Number(player.position), player]));
+    const identities = new Map([...sides.home.players, ...sides.away.players].map((player) => [E.normalizeTag(player.tag), player]));
+    const sideAttacks = (side, player) => player ? attacks.get(side.number)?.get(E.normalizeTag(player.tag)) || [] : [];
+    const query = state.warQuery.toLocaleLowerCase('pt-BR').trim();
+    const rows = [];
+    for (let position = 1; position <= total; position += 1) {
+      const home = homeByPosition.get(position);
+      const away = awayByPosition.get(position);
+      const homeAttacks = sideAttacks(sides.home, home);
+      const awayAttacks = sideAttacks(sides.away, away);
+      if (state.currentWarFilter === 'attacked' && !homeAttacks.length) continue;
+      if (state.currentWarFilter === 'pending' && homeAttacks.length) continue;
+      const searchable = [home?.name, home?.tag, away?.name, away?.tag, ...homeAttacks.map((attack) => attack.defender.name), ...awayAttacks.map((attack) => attack.defender.name)].join(' ').toLocaleLowerCase('pt-BR');
+      if (query && !searchable.includes(query)) continue;
+      const playerHeader = (player, playerAttacks, side) => {
+        if (!player) return `<div class="war-side-head war-side-head--${side} war-side-head--empty"><span class="war-position">#${position}</span><span class="war-player-empty">Sem participante</span></div>`;
+        const sets = Array.from({ length: Math.min(2, Number(war.header.attacksPerMember) || 2) }, (_, index) => {
+          const attack = playerAttacks[index];
+          return warStarSet(attack?.stars, attack ? `${index + 1}º ataque: ${attack.stars} estrelas` : `${index + 1}º ataque pendente`);
+        }).join('');
+        return `<div class="war-side-head war-side-head--${side}"><span class="war-position">${esc(player.position ?? position)}</span>${townHall(player.th)}<strong class="war-player-name">${esc(player.name)}</strong><span class="war-player-star-pair">${sets}</span></div>`;
+      };
+      const sideMarkup = (player, playerAttacks, side) => `<div class="war-base-side war-base-side--${side}">${playerHeader(player, playerAttacks, side)}${player ? `<div class="war-side-hits">${warAttackList(playerAttacks, identities, side === 'home' ? 'away' : 'home')}</div>` : ''}</div>`;
+      rows.push(`<article class="war-base-pair" aria-label="Base ${position}">${sideMarkup(home, homeAttacks, 'home')}${sideMarkup(away, awayAttacks, 'away')}</article>`);
+    }
+    const html = rows.length ? rows.join('') : `<div class="war-map-empty">${icon(query ? 'search' : 'swords')}<span>${query ? 'Nenhum jogador encontrado nessa guerra.' : state.currentWarFilter === 'attacked' ? 'Ainda não há ataques registrados do nosso clã.' : 'Nenhuma base corresponde a este filtro.'}</span></div>`;
+    return { html, count: rows.length, total };
+  }
+  function renderWarMap(war, kind) {
+    const roster = war.roster || war.players || [];
+    const opponentRoster = war.opponentRoster || [];
+    const hasRoster = roster.length || opponentRoster.length;
+    if (!hasRoster) return `<div class="war-empty-inline current-war-empty">${icon('clock')}<span><strong>Guerra em preparação</strong><small>Participantes e ataques aparecerão quando a escalação for definida.</small></span></div>`;
+    const ours = war.result.ourSide || 1;
+    const ownAttacks = (war.attacks || war.ourAttacks || []).filter((attack) => attack.side === ours);
+    const attackedTags = new Set(ownAttacks.map((attack) => E.normalizeTag(attack.attacker.tag)));
+    const attackedCount = roster.filter((player) => attackedTags.has(E.normalizeTag(player.tag))).length;
+    const result = warMapRows(war);
+    const inputLabel = kind === 'current' ? 'Buscar jogador na guerra atual' : 'Buscar jogador na última guerra';
+    return `<section class="war-map" data-war-map-kind="${kind}" aria-label="Mapa de ataques"><div class="war-map-toolbar"><div class="war-map-title"><div class="eyebrow">MAPA DA GUERRA</div><h4>Bases e ataques</h4><small data-war-map-count>${result.count} de ${result.total} bases</small></div><label class="search-field war-map-search">${icon('search')}<input type="search" data-war-map-search aria-label="${inputLabel}" placeholder="Buscar jogador" value="${esc(state.warQuery)}"></label></div><div class="segments war-map-filters" role="group" aria-label="Filtrar mapa por ataques">${[['all', 'Todas', roster.length], ['attacked', 'Atacaram', attackedCount], ['pending', 'Pendentes', Math.max(0, roster.length - attackedCount)]].map(([filter, label, count]) => `<button type="button" data-current-war-filter="${filter}" aria-pressed="${state.currentWarFilter === filter}">${label}<span>${count}</span></button>`).join('')}</div><div class="war-map-list">${result.html}</div></section>`;
+  }
+  function renderWarBattle(war, kind) {
+    const ours = war.result.ourSide || 1;
+    const theirs = war.result.opponentSide || (ours === 1 ? 2 : 1);
     const ourName = war.result.clans[ours]?.name || state.clanName || 'Nosso clã';
     const opponentName = war.result.clans[theirs]?.name || 'Adversário';
-    const current = state.currentWar;
-    $('#war-view').innerHTML = `<div class="view-heading"><div class="eyebrow">RELATÓRIO DE BATALHA</div><h2 id="war-title" tabindex="-1">Cada guerra ensina.</h2><p>O desempenho que orienta sua próxima convocação.</p></div>${current ? `<div class="current-war-strip">${icon('swords')}<span>Guerra atual <b>${current.header.sizeHome} × ${current.header.sizeAway}</b></span><span class="tag ${current.result.state === 'preparation' ? 'gold' : 'green'}">${esc(current.result.label)}</span></div>` : ''}<section class="war-scoreboard" aria-label="Placar da última guerra"><div class="scoreboard-top"><span class="eyebrow">ÚLTIMA GUERRA CONCLUÍDA · ${war.header.sizeHome} × ${war.header.sizeAway}</span><span class="tag ${resultTone}">${icon(war.result.state === 'win' ? 'check' : 'swords')}${esc(war.result.label)}</span></div><div class="scoreboard-teams"><div class="our-team">${clanEmblem(war.result.clans[ours]?.badgeUrls || state.clanBadgeUrl, ourName, 'score-crest')}<h3>${esc(ourName)}</h3><span>${E.fmtPct(war.result.percents[ours])} de destruição</span></div><div class="score"><b>${war.result.stars[ours] ?? '—'}</b><span>×</span><b>${war.result.stars[theirs] ?? '—'}</b><small>${icon('star')} ESTRELAS</small></div><div class="opponent-team">${clanEmblem(war.result.clans[theirs]?.badgeUrls, opponentName, 'opponent-crest')}<h3>${esc(opponentName)}</h3><span>${E.fmtPct(war.result.percents[theirs])} de destruição</span></div></div><div class="war-stats"><div><b>${war.ourAttacks.length}<small>/${war.result.attacksMax || war.header.sizeHome * war.header.attacksPerMember}</small></b><span>Ataques usados</span></div><div><b>${war.ourBasesTripled}<small>/${war.header.sizeAway}</small></b><span>Bases com 3 estrelas</span></div><div><b>${war.ourAttacks.filter((a) => a.cleanup).length}</b><span>Ataques de limpeza</span></div></div></section><section class="war-report"><div class="section-heading"><div><div class="eyebrow">DESEMPENHO DO CLÃ</div><h3>O resultado, jogador por jogador.</h3></div><button type="button" class="button secondary" data-command="stats">${icon('star')}Estatísticas e CWL</button></div><div class="roster-toolbar"><div class="segments" role="group" aria-label="Relatório exibido"><button type="button" data-war-tab="players" aria-pressed="${state.warTab === 'players'}">Jogadores<span>${war.players.length}</span></button><button type="button" data-war-tab="attacks" aria-pressed="${state.warTab === 'attacks'}">Ataques<span>${war.ourAttacks.length}</span></button></div><label class="search-field">${icon('search')}<input type="search" id="war-search" aria-label="Buscar no relatório" placeholder="Buscar jogador" value="${esc(state.warQuery)}"></label></div><div id="war-report-content"></div></section>`;
-    renderWarRows();
+    const attacks = war.attacks || [...(war.ourAttacks || []), ...(war.opponentAttacks || [])];
+    const ourAttackCount = war.result.attacksUsed == null ? attacks.filter((attack) => attack.side === ours).length : Number(war.result.attacksUsed);
+    const opponentAttackCount = war.result.opponentAttacksUsed == null ? attacks.filter((attack) => attack.side === theirs).length : Number(war.result.opponentAttacksUsed);
+    const ownLimit = Number(war.result.attacksMax) || war.header.sizeHome * war.header.attacksPerMember;
+    const opponentLimit = Number(war.result.opponentAttacksMax) || war.header.sizeAway * war.header.attacksPerMember;
+    const resultState = war.result.state;
+    const tone = resultState === 'preparation' ? 'gold' : resultState === 'win' ? 'green' : resultState === 'lose' ? 'red' : 'blue';
+    const label = war.result.label || (kind === 'current' ? 'EM ANDAMENTO' : 'GUERRA CONCLUÍDA');
+    const scoreValue = (side) => war.result.stars[side] == null ? (resultState === 'preparation' ? '0' : '—') : war.result.stars[side];
+    const pctValue = (side) => war.result.percents[side] == null ? '—' : E.fmtPct(war.result.percents[side]);
+    const progressWidth = (count, limit) => limit ? Math.max(0, Math.min(100, count / limit * 100)) : 0;
+    const maxAttacks = Math.max(ownLimit, opponentLimit);
+    return `<section class="war-battle-card ${kind === 'history' ? 'war-battle-card--history' : ''}" aria-label="${kind === 'current' ? 'Guerra atual' : 'Última guerra concluída'}"><div class="war-battle-heading"><div><div class="eyebrow">${kind === 'current' ? 'GUERRA ATUAL' : 'ÚLTIMA GUERRA'} · ${war.header.sizeHome} × ${war.header.sizeAway}</div><h3>${esc(ourName)} <span>vs.</span> ${esc(opponentName)}</h3></div><span class="tag ${tone}">${esc(label)}</span></div><div class="war-match-score"><b>${esc(scoreValue(ours))}</b><span>${icon('star', 'filled')}</span><b>${esc(scoreValue(theirs))}</b></div><div class="war-match-teams"><div class="war-match-team war-match-team--home">${clanEmblem(war.result.clans[ours]?.badgeUrls || state.clanBadgeUrl, ourName, 'score-crest')}<div><strong>${esc(ourName)}</strong><small>${pctValue(ours)} destruição</small></div>${resultState === 'win' ? '<span class="war-outcome">Vitória</span>' : resultState === 'lose' ? '<span class="war-outcome war-outcome--loss">Derrota</span>' : ''}</div><span class="war-match-divider">${icon('swords')}</span><div class="war-match-team war-match-team--away">${resultState === 'win' ? '<span class="war-outcome war-outcome--loss">Derrota</span>' : resultState === 'lose' ? '<span class="war-outcome">Vitória</span>' : ''}<div><strong>${esc(opponentName)}</strong><small>${pctValue(theirs)} destruição</small></div>${clanEmblem(war.result.clans[theirs]?.badgeUrls, opponentName, 'opponent-crest')}</div></div><div class="war-attack-usage"><div class="war-usage-side war-usage-side--home"><span><b>${ourAttackCount}</b> / ${ownLimit} ataques</span><i><b style="width:${progressWidth(ourAttackCount, ownLimit)}%"></b></i></div><span class="war-usage-icon">${icon('swords')}</span><div class="war-usage-side war-usage-side--away"><span><b>${opponentAttackCount}</b> / ${opponentLimit} ataques</span><i><b style="width:${progressWidth(opponentAttackCount, opponentLimit)}%"></b></i></div></div>${maxAttacks ? `<p class="war-usage-caption">Cada clã pode usar até ${maxAttacks} ataques nesta guerra.</p>` : ''}${renderWarMap(war, kind)}</section>`;
   }
-  function renderWarRows() {
-    if (!$('#war-report-content') || !state.lastWar) return;
-    const q = state.warQuery.toLocaleLowerCase('pt-BR').trim(); const war = state.lastWar;
-    if (state.warTab === 'players') {
-      const rows = [...war.players].sort((a, b) => a.position - b.position).filter((r) => `${r.name} ${r.tag}`.toLocaleLowerCase('pt-BR').includes(q));
-      $('#war-report-content').innerHTML = `<div class="performance-columns" aria-hidden="true"><span>Jogador</span><span>1º ataque</span><span>2º ataque</span><span>Total</span><span>Novas estrelas</span></div>${rows.map((p) => `<details class="performance-row"><summary><span class="player-identity">${townHall(p.th)}<span class="player-name"><strong>${esc(p.name)}</strong><span>${p.missed ? `<em class="missed">${p.missed} ${p.missed === 1 ? 'ataque pendente' : 'ataques pendentes'}</em>` : 'Todos os ataques usados'}</span></span></span>${attackMetric(p.firstAttackStars, '1º ataque', 'span')}${attackMetric(p.secondAttackStars, '2º ataque', 'span')}<span class="player-stat gold-stat"><b>${p.stars}</b><span>total</span></span><span class="performance-new">${p.newStars}</span>${icon('chevron')}</summary><div class="performance-details"><span>#${esc(p.tag)} · posição ${p.position}</span><span>${p.attacks} ataques usados</span><span>${p.triples} ataques com 3 estrelas</span><span>${p.newStars} novas estrelas</span><span>${p.cleanups} limpezas</span><span>${E.fmtPct(p.avgDestruction)} de destruição média</span><button type="button" class="button small secondary" data-stats="${esc(p.tag)}">${icon('star')}Histórico e estatísticas</button></div></details>`).join('') || '<div class="empty-search">Nenhum jogador encontrado.</div>'}`;
+  function renderCurrentWar(war) {
+    return renderWarBattle(war, 'current');
+  }
+  function renderWar() {
+    const war = state.lastWar; const current = state.currentWar;
+    const previousDisclosure = $('#previous-war-disclosure');
+    if (previousDisclosure) state.previousWarExpanded = previousDisclosure.open;
+    const stages = state.loadStages || {};
+    const heading = `<div class="view-heading war-view-heading"><div class="eyebrow">RELATÓRIO DE BATALHA</div><h2 id="war-title" tabindex="-1">Guerras do clã</h2><p>Placar atual, ataques e resultado anterior em um só lugar.</p></div>`;
+    let content = heading;
+    if (current) content += renderCurrentWar(current);
+    else if (state.loading && stages.currentWar === 'loading') content += `<section class="war-loading-card skeleton" aria-label="Consultando a guerra atual"><div class="war-loading-title"></div><div class="war-loading-score"></div><div class="war-loading-caption">Buscando placar e participantes da guerra atual…</div></section>`;
+    else content += `<div class="war-empty-inline">${icon(stages.currentWar === 'error' ? 'alert' : 'swords')}<span><strong>${stages.currentWar === 'error' ? 'Guerra atual indisponível' : 'Nenhuma guerra em andamento'}</strong><small>${stages.currentWar === 'error' ? 'O histórico continua disponível abaixo, se a consulta tiver sucesso.' : 'O relatório atual aparecerá quando o clã entrar em preparação.'}</small></span></div>`;
+    if (war) {
+      const ours = war.result.ourSide || 1; const theirs = war.result.opponentSide || 2;
+      const resultTone = war.result.state === 'win' ? 'green' : war.result.state === 'lose' ? 'red' : 'gold';
+      const ourName = war.result.clans[ours]?.name || state.clanName || 'Nosso clã';
+      const opponentName = war.result.clans[theirs]?.name || 'Adversário';
+      const resultStars = `${war.result.stars[ours] ?? '—'} × ${war.result.stars[theirs] ?? '—'}`;
+      content += `<details id="previous-war-disclosure" class="previous-war-disclosure" ${state.previousWarExpanded ? 'open' : ''}><summary><span class="previous-war-summary-copy"><span class="eyebrow">HISTÓRICO</span><strong>Última guerra concluída</strong><small>${war.header.sizeHome} × ${war.header.sizeAway} · ${esc(ourName)} x ${esc(opponentName)}</small></span><span class="previous-war-summary-result"><span class="tag ${resultTone}">${icon(war.result.state === 'win' ? 'check' : 'swords')}${esc(war.result.label)}</span><b>${resultStars}</b></span>${icon('chevron')}</summary><div class="previous-war-content"><div class="previous-war-actions"><button type="button" class="button secondary" data-command="stats">${icon('star')}Estatísticas e CWL</button></div>${renderWarBattle(war, 'history')}</div></details>`;
+    } else if (state.loading && stages.history === 'loading') {
+      content += `<section class="war-loading-history skeleton" aria-label="Consultando histórico de guerras"><span></span><i></i><small>Buscando a última guerra concluída…</small></section>`;
     } else {
-      const rows = war.ourAttacks.filter((a) => `${a.attacker.name} ${a.defender.name}`.toLocaleLowerCase('pt-BR').includes(q)).sort((a, b) => a.order - b.order);
-      $('#war-report-content').innerHTML = `<div class="attack-list">${rows.map((a) => `<article class="attack-row"><span class="attack-order">${String(a.order).padStart(2, '0')}</span><div class="attack-names"><strong>${esc(a.attacker.name)}</strong><span>${icon('swords')}${esc(a.defender.name)}</span></div><div class="attack-result"><strong class="attack-stars" aria-label="${a.stars} estrelas">${[1, 2, 3].map((n) => icon('star', n <= a.stars ? 'filled' : 'unfilled')).join('')}</strong><span>${E.fmtPct(a.destruction)} · ${esc(a.duration || '—')}</span></div><span class="tag ${a.cleanup ? 'muted' : 'green'}">${a.cleanup ? 'Limpeza' : `+${a.newStars} estrelas`}</span></article>`).join('') || '<div class="empty-search">Nenhum ataque encontrado.</div>'}</div><p class="report-note">Novas estrelas são as que aumentaram o placar. Limpezas não acrescentaram estrelas à base.</p>`;
+      content += `<div class="war-empty-inline history-empty">${icon(stages.history === 'error' ? 'alert' : 'clock')}<span><strong>${stages.history === 'error' ? 'Histórico indisponível' : 'Nenhuma guerra anterior disponível'}</strong><small>O resultado anterior aparece aqui quando estiver disponível.</small></span></div>`;
     }
+    $('#war-view').innerHTML = content;
+  }
+  function updateWarMapLists() {
+    for (const node of $$('[data-war-map-kind]')) {
+      const war = node.dataset.warMapKind === 'current' ? state.currentWar : state.lastWar;
+      if (!war) continue;
+      const result = warMapRows(war);
+      const list = node.querySelector('.war-map-list');
+      if (list) list.innerHTML = result.html;
+      const count = node.querySelector('[data-war-map-count]');
+      if (count) count.textContent = `${result.count} de ${result.total} bases`;
+    }
+    $$('[data-war-map-search]').forEach((input) => { if (input.value !== state.warQuery) input.value = state.warQuery; });
   }
   function setView(view, focus = true) {
     if (!viewTitles[view]) return;
@@ -319,10 +437,41 @@
     state.clanTag = normalized; state.clanName = ''; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false; state.historyLookupWarning = '';
     state.source = ''; state.dataWarnings = []; state.fetchedAt = ''; state.error = ''; state.loading = true;
+    state.loadStages = null; state.memberProgress = null; state.currentWarFilter = 'all'; state.warQuery = ''; state.previousWarExpanded = false;
     state.status = 'Consultando membros, escudos e guerras…'; state.expanded.clear();
     render();
     try {
-      const data = await window.ClanAPI.loadClan(normalized, { onStatus: (message) => { state.status = message; renderStatus(); } });
+      const data = await window.ClanAPI.loadClan(normalized, {
+        onStatus: (message) => { state.status = message; renderStatus(); },
+        onProgress: (progress) => {
+          const previousStages = state.loadStages;
+          const coreStageChanged = !previousStages || ['clan', 'currentWar', 'history'].some((key) => previousStages[key] !== progress.stages[key]);
+          state.loadStages = progress.stages;
+          state.memberProgress = progress.profiles;
+          if (progress.profiles.total && progress.profiles.done < progress.profiles.total) {
+            state.status = `Consultando escudos: ${progress.profiles.done}/${progress.profiles.total} jogadores…`;
+          } else if (progress.stages.profiles === 'done' && (progress.stages.currentWar === 'loading' || progress.stages.history === 'loading')) {
+            state.status = 'Escudos consultados · aguardando dados das guerras…';
+          } else if (progress.stages.clan === 'loading') state.status = 'Consultando membros do clã…';
+          else if (progress.stages.currentWar === 'loading' || progress.stages.history === 'loading') state.status = 'Aguardando a guerra atual e o histórico…';
+          renderStatus();
+          if (coreStageChanged) renderWar();
+        },
+        onData: (update) => {
+          if (update.type === 'clan') {
+            state.clanName = update.clan.name || '';
+            state.clanBadgeUrl = badgeUrl(update.clan.badgeUrls);
+            state.source = 'worker';
+          } else if (update.type === 'currentWar') {
+            state.currentWar = update.currentWar ? E.buildWar(update.currentWar) : null;
+          } else if (update.type === 'lastWar') {
+            state.lastWar = update.lastWar ? E.buildWar(update.lastWar) : null;
+          } else if (update.type === 'warnings') {
+            state.dataWarnings = update.warnings;
+          }
+          render();
+        },
+      });
       state.members = data.members; state.clanName = data.clan.name; state.clanBadgeUrl = badgeUrl(data.clan.badgeUrls);
       state.lastWar = data.lastWar ? E.buildWar(data.lastWar) : null;
       state.currentWar = data.currentWar ? E.buildWar(data.currentWar) : null;
@@ -334,7 +483,7 @@
   }
   async function loadDemo() {
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false;
-    state.loading = true; render();
+    state.loading = true; state.loadStages = null; state.memberProgress = null; state.previousWarExpanded = false; state.currentWarFilter = 'all'; state.warQuery = ''; render();
     try {
       const response = await fetch('portal/demo.json', { credentials: 'omit' });
       if (!response.ok) throw new Error('Demonstração indisponível.');
@@ -497,7 +646,7 @@
       if (button.dataset.command === 'stats') openStats();
       if (button.dataset.command === 'retry-stats') loadStats();
       if (button.dataset.filter) { state.filter = button.dataset.filter; renderTeam(); }
-      if (button.dataset.warTab) { state.warTab = button.dataset.warTab; renderWar(); }
+      if (button.dataset.currentWarFilter) { state.currentWarFilter = button.dataset.currentWarFilter; renderWar(); }
       if (button.dataset.action) adjustPlayer(button.dataset.action, button.dataset.tag);
       if (button.dataset.command === 'refresh') loadClan();
       if (button.dataset.command === 'copy') copySelection();
@@ -508,7 +657,7 @@
     $('#main').addEventListener('change', (event) => { if (event.target.dataset.setting) handleSetting(event.target); });
     $('#main').addEventListener('input', (event) => {
       if (event.target.id === 'roster-search') { state.query = event.target.value; renderRoster(); }
-      if (event.target.id === 'war-search') { state.warQuery = event.target.value; renderWarRows(); }
+      if (event.target.matches('[data-war-map-search]')) { state.warQuery = event.target.value; updateWarMapLists(); }
     });
   }
   loadSettings(); bindEvents(); render(); setView('team', false); audit('page_view');
