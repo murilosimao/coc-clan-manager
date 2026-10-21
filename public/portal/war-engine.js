@@ -6,7 +6,7 @@
   const ROLES = ['Leader', 'Co-leader', 'Elder', 'Member'];
 
   const DEFAULT_SETTINGS = {
-    rankBy: 'position',      // position | th | performance | name
+    rankBy: 'activity',      // activity | position | th | performance | name
     usePlayerHistoryFallback: false,
     forcedIn: [],
     forcedOut: [],
@@ -88,8 +88,21 @@
     };
   }
 
+  function makeActivityRankFn() {
+    const numberOr = (value, fallback) => value != null && Number.isFinite(Number(value)) ? Number(value) : fallback;
+    return (a, b) => {
+      const trophiesA = numberOr(a.member.trophies, -1);
+      const trophiesB = numberOr(b.member.trophies, -1);
+      const rankA = numberOr(a.member.clanRank ?? a.member.position, Infinity);
+      const rankB = numberOr(b.member.clanRank ?? b.member.position, Infinity);
+      return trophiesB - trophiesA || rankA - rankB || String(a.member.name || '').localeCompare(String(b.member.name || ''), 'pt-BR');
+    };
+  }
+
   function makeRankFn(rankBy) {
     switch (rankBy) {
+      case 'activity':
+        return makeActivityRankFn();
       case 'th':
         return (a, b) => (b.member.th || 0) - (a.member.th || 0) || a.member.position - b.member.position;
       case 'performance':
@@ -136,6 +149,7 @@
   function selectTeam(members, lastWar, settings, currentWar, personalHistoryByTag = new Map(), historyStatusByTag = new Map()) {
     const perfByTag = new Map((lastWar?.players || []).map((player) => [normalizeTag(player.tag), player]));
     const rank = makeRankFn(settings.rankBy);
+    const activityRank = makeActivityRankFn();
     const forcedIn = new Set(settings.forcedIn || []);
     const forcedOut = new Set(settings.forcedOut || []);
     const whitelist = new Set(settings.whitelist || []);
@@ -219,7 +233,7 @@
         !row.forcedOut &&
         !row.forcedIn
       )
-      .sort(rank);
+      .sort(activityRank);
 
     const strictCount = all.filter((row) => row.strictEligible).length;
     const whitelistCount = eligibleList.filter((row) => row.whitelisted).length;
@@ -241,7 +255,7 @@
         !row.blacklisted &&
         !row.forcedOut
       )
-      .sort(rank);
+      .sort(activityRank);
     const currentWarSize = currentWar?.header?.sizeHome || null;
     const target = roundToStandard(availableCount);
     const canUseRedFallback = target > availableCount && target - availableCount <= 2;
@@ -263,10 +277,10 @@
       const remainingFallback = fallback.filter((row) => !selectedTags.has(row.member.tag));
       const greenFallback = remainingFallback.filter((row) => row.member.pref === 'in');
       const unknownFallback = remainingFallback.filter((row) => row.member.pref !== 'in');
-      const pickLast = (pool, count) => count > 0 ? pool.slice(-count) : [];
+      const pickNext = (pool, count) => count > 0 ? pool.slice(0, count) : [];
       const addExceptions = (pool) => {
         const need = target - selected.length;
-        const picks = pickLast(pool, need);
+        const picks = pickNext(pool, need);
         picks.forEach((row) => {
           row.exception = true;
           row.sizeFillException = true;
@@ -274,8 +288,8 @@
         });
       };
 
-      // Fill with the lowest-priority green-shield players first, then neutral
-      // shield entries. Red shields are a last resort only when rounding up.
+      // Fill with the next green-shield players in trophy/rank order, then
+      // neutral shields. Red shields are a last resort when rounding up.
       addExceptions(greenFallback);
       addExceptions(unknownFallback);
       if (selected.length < target && canUseRedFallback) {

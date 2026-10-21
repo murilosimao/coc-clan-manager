@@ -68,7 +68,9 @@
     const members = clan.memberList.map((member) => ({
       tag: tagOf(member.tag), name: member.name,
       th: Number.isFinite(Number(member.townHallLevel)) ? Number(member.townHallLevel) : null,
+      clanRank: Number.isFinite(Number(member.clanRank)) ? Number(member.clanRank) : null,
       position: Number.isFinite(Number(member.clanRank)) ? Number(member.clanRank) : null,
+      trophies: member.trophies != null && Number.isFinite(Number(member.trophies)) ? Number(member.trophies) : null,
       role: roles[member.role] || '', pref: 'unknown', prefSource: 'unavailable', prefConfirmedAt: null,
     }));
     const warnings = [];
