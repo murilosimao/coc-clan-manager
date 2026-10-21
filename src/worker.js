@@ -13,6 +13,7 @@ const AUDIT_ACTIONS = new Set([
   'whitelist_added', 'whitelist_removed', 'blacklist_added', 'blacklist_removed',
   'whitelist_cleared', 'blacklist_cleared', 'stale_lists_pruned',
   'manual_inclusion', 'manual_removal', 'manual_override_cleared', 'setting_changed',
+  'player_stats_opened', 'player_stats_filter_changed',
 ]);
 const AUDIT_SETTINGS = new Set([
   'excludeRed', 'requireTwoAttacks', 'requireOneStar', 'requireTriple',
@@ -28,6 +29,15 @@ function tagOf(value) {
   const tag = String(value || '').trim().replace(/^#/, '').toUpperCase();
   if (!TAG.test(tag)) throw new APIError(400, 'Tag inválida do Clash of Clans.');
   return tag;
+}
+
+function clanBadges(value) {
+  const badges = {};
+  for (const size of ['small', 'medium', 'large']) {
+    const url = value?.[size];
+    if (typeof url === 'string' && /^https:\/\/api-assets\.clashofclans\.com\/badges\/(70|200|512)\/[A-Za-z0-9_-]+\.png$/.test(url)) badges[size] = url;
+  }
+  return badges;
 }
 
 function json(data, status = 200, headers = {}) {
@@ -54,6 +64,7 @@ function safeRoute(pathname) {
   if (pathname === '/api/health') return 'health';
   if (pathname === '/api/audit') return 'site_action';
   if (pathname === '/api/players') return 'player_profiles';
+  if (/^\/api\/players\/[^/]+\/war-stats$/.test(pathname)) return 'player_war_statistics';
   const match = pathname.match(/^\/api\/clans\/[^/]+(?:\/(wars|currentwar))?$/);
   if (!match) return 'other';
   if (match[1] === 'wars') return 'clan_war_history';
@@ -173,6 +184,31 @@ function profile(data, expectedTag) {
   };
 }
 
+function playerWarStats(data, expectedTag) {
+  if (!Array.isArray(data?.items)) throw new APIError(502, 'A fonte não retornou um histórico de guerras válido.');
+  const hit = (attack) => {
+    if (!Number.isInteger(attack.stars) || attack.stars < 0 || attack.stars > 3) throw new APIError(502, 'O histórico de ataques está incompleto.');
+    return {
+      stars: attack.stars,
+      destructionPercentage: Number.isFinite(attack.destructionPercentage) ? attack.destructionPercentage : null,
+      order: Number.isFinite(attack.order) ? attack.order : Number.isFinite(attack.attack_order) ? attack.attack_order : null,
+    };
+  };
+  return { items: data.items.slice(0, 100).filter((item) => String(item.member_data?.tag || '').replace(/^#/, '').toUpperCase() === expectedTag).map((item) => {
+    const war = item.war_data || {};
+    if (!Array.isArray(item.attacks) || !Array.isArray(item.defenses)) throw new APIError(502, 'O histórico de ataques está incompleto.');
+    return {
+      type: ['random', 'cwl', 'friendly'].includes(war.type) ? war.type : 'unknown',
+      state: war.state, teamSize: war.teamSize,
+      attacksPerMember: Number.isInteger(war.attacksPerMember) && war.attacksPerMember > 0 ? war.attacksPerMember : war.type === 'cwl' ? 1 : 2,
+      startTime: war.startTime, endTime: war.endTime,
+      clan: { name: war.clan?.name }, opponent: { name: war.opponent?.name },
+      attacks: item.attacks.map(hit),
+      defenses: item.defenses.map(hit),
+    };
+  }) };
+}
+
 async function api(request, ctx) {
   const url = new URL(request.url);
   if (url.pathname === '/api/audit') return audit(request, Date.now());
@@ -195,6 +231,13 @@ async function api(request, ctx) {
     return json({ items, source: 'clashapi.colinschmale.dev', cacheSeconds: TTL });
   }
 
+  const statsMatch = url.pathname.match(/^\/api\/players\/([^/]+)\/war-stats$/);
+  if (statsMatch) {
+    const tag = tagOf(decodeURIComponent(statsMatch[1]));
+    const result = await upstream(HISTORY_API, '/player/' + encodeURIComponent('#' + tag) + '/warhits?limit=100', ctx, (data) => playerWarStats(data, tag));
+    return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashking', cacheSeconds: TTL });
+  }
+
   const match = url.pathname.match(/^\/api\/clans\/([^/]+)(?:\/(wars|currentwar))?$/);
   if (!match) return json({ error: 'Rota não encontrada.' }, 404);
   const tag = tagOf(decodeURIComponent(match[1]));
@@ -210,7 +253,7 @@ async function api(request, ctx) {
   const result = await upstream(PROFILE_API, `/v1/clans/${encoded}`, ctx, (data) => {
     if (tagOf(data?.tag) !== tag || !Array.isArray(data.memberList)) throw new APIError(502, 'A fonte não retornou a lista de membros do clã.');
     return {
-      tag: data.tag, name: data.name, members: data.members,
+      tag: data.tag, name: data.name, members: data.members, badgeUrls: clanBadges(data.badgeUrls),
       memberList: data.memberList.map((member) => ({
         tag: member.tag, name: member.name, townHallLevel: member.townHallLevel,
         role: member.role, clanRank: member.clanRank,

@@ -72,7 +72,7 @@
         timer: war.state === 'preparation' ? 'Preparation Day' : '',
       },
       result: {
-        clans: { 1: { tag: tagOf(war.clan.tag), name: war.clan.name }, 2: { tag: tagOf(war.opponent.tag), name: war.opponent.name } },
+        clans: { 1: { tag: tagOf(war.clan.tag), name: war.clan.name, badgeUrls: war.clan.badgeUrls }, 2: { tag: tagOf(war.opponent.tag), name: war.opponent.name, badgeUrls: war.opponent.badgeUrls } },
         stars: { 1: number(war.clan.stars), 2: number(war.opponent.stars) },
         percents: { 1: number(war.clan.destructionPercentage), 2: number(war.opponent.destructionPercentage) },
         ourSide, opponentSide, state, label,

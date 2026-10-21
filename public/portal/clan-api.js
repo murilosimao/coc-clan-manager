@@ -133,5 +133,10 @@
       memberSource: 'clashapi.colinschmale.dev',
     };
   }
-  window.ClanAPI = { loadClan, audit };
+  async function loadPlayerStats(playerTag) {
+    const tag = tagOf(playerTag);
+    if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag)) throw new Error('Tag de jogador inválida.');
+    return request('/api/players/' + encodeURIComponent('#' + tag) + '/war-stats');
+  }
+  window.ClanAPI = { loadClan, loadPlayerStats, audit };
 })();

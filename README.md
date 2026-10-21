@@ -12,6 +12,18 @@ O domínio `coc-purosangue.duckdns.org` está vinculado ao Pages, com IPv4 `185.
 
 Seleciona participantes para a próxima guerra a partir dos escudos atuais, membros do clã e desempenho na última guerra concluída. A escalação oficial é feita no jogo.
 
+## Interface e uso
+
+O Quartel do Clã tem três áreas: **Time**, **Critérios** e **Última guerra**. No PC, a lista facilita comparar jogadores e apresenta contexto na lateral. No celular, a navegação fica na parte inferior, com detalhes expansíveis e ação de copiar. A busca e os filtros Convocados/Reserva/Todos funcionam nas duas telas.
+
+- Estrelas do **1º e 2º ataque** aparecem separadamente. Zero estrela é um resultado válido; `—` significa ataque ausente ou desempenho indisponível.
+- **Copiar para Excel** usa TSV com cabeçalhos. **Baixar TSV** gera o mesmo conteúdo em UTF-8 com BOM. Nomes são tratados como texto para evitar fórmulas ao colar na planilha. Não há importação de arquivos.
+- **Histórico e estatísticas** nos detalhes de cada jogador (ou **Estatísticas e CWL** no relatório) consulta até 100 guerras pessoais no ClashKing. O filtro separa guerras normais de Liga. Os cálculos usam apenas guerras concluídas e a quantidade de ataques informada por cada guerra, incluindo rodadas de CWL com um ataque. O histórico pode incluir outros clãs e é consultado somente ao abrir o painel.
+- A seleção continua usando o desempenho da última guerra concluída; o histórico pessoal é uma análise adicional para a decisão do líder.
+- Brasões vêm do campo público `badgeUrls`. Os ícones de CV 1–18 estão incluídos no próprio site. Créditos e origem em `public/portal/images/SOURCES.md`. Ícones ausentes têm representação textual de reserva.
+
+O redesenho foi iniciado em um worktree de `origin/main` (`43610a2`), na branch `redesign/mobile-war-room`. O sistema visual e as decisões de UX estão em `design-system/MASTER.md`.
+
 ## Arquitetura
 
 O GitHub Pages publica a página estática, que consulta as rotas `/api/*` no Cloudflare Worker. O Worker também serve a mesma página em seu próprio endereço. Não é necessário manter um servidor.
@@ -22,7 +34,7 @@ O GitHub Pages publica a página estática, que consulta as rotas `/api/*` no Cl
 - Cache de 60 segundos nas respostas bem-sucedidas; são exibidos o momento da consulta e os avisos de dados ausentes.
 - Os jogadores são consultados em lotes de cinco. Cada invocação usa no máximo cinco consultas externas e três conexões simultâneas.
 - Perfis indisponíveis ou que já não pertençam ao clã ficam com escudo desconhecido, excluído enquanto o filtro estiver ligado. Confirmações manuais antigas não substituem os dados da API.
-- Histórico ausente ou incompleto é identificado. A demo é sempre uma fonte separada.
+- Histórico ausente ou incompleto é identificado. A demonstração de desenvolvimento (`?demo=1`) é explícita e nunca substitui uma falha da API automaticamente.
 - Workers Logs registra chamadas da API por categoria e ações básicas da página. Usa um UUID temporário por aba para agrupar a sessão; os logs personalizados não incluem IP completo, nomes ou tags de jogadores, conteúdo de HAR, cabeçalhos ou credenciais. Os logs automáticos de invocação ficam desligados para não persistir URLs com parâmetros. No plano gratuito, a Cloudflare informa retenção de 3 dias e limite de 200 mil eventos por dia.
 
 Os provedores são serviços externos e podem mudar a disponibilidade ou atrasar dados. O cache não garante que um escudo alterado no jogo apareça imediatamente.
@@ -36,7 +48,7 @@ npm ci
 npm run dev
 ```
 
-Abra a URL informada pelo Wrangler. A página consulta `#2G8QCR92V` por padrão e permite trocar a tag. Use **Ver demo** para uma captura de 20/10/2026.
+Abra a URL informada pelo Wrangler. A página consulta `#2G8QCR92V` por padrão e permite trocar a tag em **Meu clã**. Para revisão visual com uma captura de 20/10/2026, acrescente `?demo=1` à URL. Os painéis pessoais de estatísticas consultam a API atual, mesmo ao revisar essa demonstração.
 
 ```sh
 npm run check
@@ -79,6 +91,8 @@ Se futuramente for usada a API oficial da Supercell, a chave deverá ficar em um
 - Listas de inclusão e exclusão e ajustes manuais preservam os bloqueios de escudo ativos.
 - Tamanhos válidos: 5, 10, 15, ..., 50.
 - Novas estrelas são calculadas por ordem de ataque, acompanhando o melhor resultado anterior em cada base.
-- A seleção pode ser copiada ou exportada como JSON, incluindo a origem dos escudos.
+- A seleção pode ser copiada ou baixada em TSV, incluindo o resultado separado de cada ataque e o motivo da convocação.
+
+Tipografia Barlow e Barlow Condensed distribuída sob SIL Open Font License; licenças em `public/portal/fonts/`.
 
 Créditos de dados: ClashKing e o proxy de perfis `clashapi.colinschmale.dev`. Projeto independente, sem afiliação com a Supercell.
