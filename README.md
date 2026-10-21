@@ -12,6 +12,8 @@ O domínio `coc-purosangue.duckdns.org` está vinculado ao Pages, com IPv4 `185.
 
 Seleciona participantes para a próxima guerra a partir dos escudos atuais, membros do clã e desempenho na última guerra concluída. A escalação oficial é feita no jogo.
 
+O tamanho padrão da escalação é calculado pela quantidade de jogadores com escudo verde: 36 ou 37 disponíveis resultam em 35; 38 ou 39 resultam em 40. Para completar um tamanho arredondado para cima, a escalação usa as reservas de menor prioridade e pode recorrer a escudos vermelhos somente como última opção. Bloqueios manuais continuam valendo.
+
 ## Interface e uso
 
 O Quartel do Clã tem três áreas: **Time**, **Critérios** e **Última guerra**. No PC, a lista facilita comparar jogadores e apresenta contexto na lateral. No celular, a navegação fica na parte inferior, com detalhes expansíveis e ação de copiar. A busca e os filtros Convocados/Reserva/Todos funcionam nas duas telas.
@@ -33,7 +35,7 @@ O GitHub Pages publica a página estática, que consulta as rotas `/api/*` no Cl
 - O Worker usa URLs fixas, sem aceitar um endereço de destino arbitrário, e não encaminha cookies ou credenciais do navegador.
 - Cache de 60 segundos nas respostas bem-sucedidas; são exibidos o momento da consulta e os avisos de dados ausentes.
 - Os jogadores são consultados em lotes de cinco. Cada invocação usa no máximo cinco consultas externas e três conexões simultâneas.
-- Perfis indisponíveis ou que já não pertençam ao clã ficam com escudo desconhecido e permanecem elegíveis; somente escudo vermelho bloqueia. Confirmações manuais antigas não substituem os dados da API.
+- Perfis indisponíveis ou que já não pertençam ao clã ficam com escudo desconhecido e permanecem elegíveis; escudo vermelho bloqueia a seleção normal, mas pode ser usado como última opção se o tamanho padrão arredondar para cima. Confirmações manuais antigas não substituem os dados da API.
 - Histórico ausente ou incompleto é identificado. A demonstração de desenvolvimento (`?demo=1`) é explícita e nunca substitui uma falha da API automaticamente.
 - Workers Logs registra chamadas da API por categoria e ações básicas da página. Usa um UUID temporário por aba para agrupar a sessão; os logs personalizados não incluem IP completo, nomes ou tags de jogadores, conteúdo de HAR, cabeçalhos ou credenciais. Os logs automáticos de invocação ficam desligados para não persistir URLs com parâmetros. No plano gratuito, a Cloudflare informa retenção de 3 dias e limite de 200 mil eventos por dia.
 
