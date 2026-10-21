@@ -229,17 +229,29 @@
     const blacklistCount = all.filter((row) => row.blacklisted).length;
     const whitelistBlocked = all.filter((row) => row.whitelistBlocked);
 
-    const availablePoolSize = eligibleList.length + fallback.length;
+    // The game size follows green shields, regardless of the previous-war
+    // performance filters. Unknown shields remain neutral but do not increase
+    // the displayed available count used to choose a standard size.
+    const availableCount = all.filter((row) =>
+      row.member.pref === 'in' && !row.blacklisted && !row.forcedOut
+    ).length;
+    const redFallback = all
+      .filter((row) =>
+        row.member.pref === 'out' &&
+        !row.blacklisted &&
+        !row.forcedOut
+      )
+      .sort(rank);
     const currentWarSize = currentWar?.header?.sizeHome || null;
-    const target = roundToStandard(eligibleList.length);
+    const target = roundToStandard(availableCount);
+    const canUseRedFallback = target > availableCount && target - availableCount <= 2;
+    const availablePoolSize = eligibleList.length + fallback.length + (canUseRedFallback ? redFallback.length : 0);
 
     let selected = eligibleList.slice();
     let trimmed = [];
 
     if (selected.length > target) {
-      const excess = selected.length - target;
-      const allowed = Math.min(excess, 2);
-      let remaining = allowed;
+      let remaining = selected.length - target;
       for (let i = selected.length - 1; i >= 0 && remaining > 0; i -= 1) {
         if (!selected[i].whitelisted && !selected[i].forcedIn) {
           trimmed.unshift(selected.splice(i, 1)[0]);
@@ -247,20 +259,37 @@
         }
       }
     } else if (selected.length < target) {
-      const need = target - selected.length;
-      const allowed = Math.min(need, 2);
-      const pool = fallback;
-      const picks = allowed <= 0 ? [] : pool.slice(-allowed);
-      picks.forEach((row) => {
-        row.exception = true;
-        selected.push(row);
-      });
+      const selectedTags = new Set(selected.map((row) => row.member.tag));
+      const remainingFallback = fallback.filter((row) => !selectedTags.has(row.member.tag));
+      const greenFallback = remainingFallback.filter((row) => row.member.pref === 'in');
+      const unknownFallback = remainingFallback.filter((row) => row.member.pref !== 'in');
+      const pickLast = (pool, count) => count > 0 ? pool.slice(-count) : [];
+      const addExceptions = (pool) => {
+        const need = target - selected.length;
+        const picks = pickLast(pool, need);
+        picks.forEach((row) => {
+          row.exception = true;
+          row.sizeFillException = true;
+          selected.push(row);
+        });
+      };
+
+      // Fill with the lowest-priority green-shield players first, then neutral
+      // shield entries. Red shields are a last resort only when rounding up.
+      addExceptions(greenFallback);
+      addExceptions(unknownFallback);
+      if (selected.length < target && canUseRedFallback) {
+        const addedTags = new Set(selected.map((row) => row.member.tag));
+        addExceptions(redFallback.filter((row) => !addedTags.has(row.member.tag)));
+      }
     }
 
     trimmed.forEach((row) => { row.trimmed = true; });
 
     const selectedTags = new Set(selected.map((row) => row.member.tag));
     const bench = all.filter((row) => !selectedTags.has(row.member.tag)).sort(rank);
+    const selectedRedFallback = selected.filter((row) => row.sizeFillException && row.member.pref === 'out');
+    const blockedWhitelist = whitelistBlocked.filter((row) => !selectedTags.has(row.member.tag));
 
     const warnings = [];
     if (selected.length < target) {
@@ -270,16 +299,21 @@
           'Confira os escudos vermelhos e os bloqueios manuais.'
         );
       } else {
-        warnings.push(`Faltam ${target - selected.length} vagas para chegar a ${target}. A regra permite completar com até 2 jogadores da reserva, sem escudo vermelho.`);
+        warnings.push(`Faltam ${target - selected.length} vagas para chegar a ${target}. Os bloqueios manuais ou a falta de jogadores elegíveis impedem completar o time.`);
       }
     }
     if (selected.length > target) {
-      warnings.push(`Há ${selected.length - target} jogadores acima das ${target} vagas. A regra permite cortar até os 2 últimos da lista.`);
+      warnings.push(`Há ${selected.length - target} jogadores acima das ${target} vagas. Os últimos da lista foram retirados até fechar o tamanho padrão.`);
     }
-    if (whitelistBlocked.length) {
+    if (selectedRedFallback.length) {
+      warnings.push(
+        `${selectedRedFallback.length} jogador(es) com escudo vermelho entraram como última opção para completar ${target} vagas, arredondadas a partir de ${availableCount} disponíveis.`
+      );
+    }
+    if (blockedWhitelist.length) {
       warnings.push(
         'O escudo vermelho bloqueia mesmo quem está na lista de prioridade: ' +
-        whitelistBlocked.map((row) => `${row.member.name} (#${row.member.tag}: ${row.hardReasons.join(', ')})`).join(', ') +
+        blockedWhitelist.map((row) => `${row.member.name} (#${row.member.tag}: ${row.hardReasons.join(', ')})`).join(', ') +
         '. Ajuste o escudo no jogo ou retire esses jogadores da lista.'
       );
     }
@@ -290,11 +324,12 @@
       );
     }
 
-    const targetLabel = `tamanho padrão mais próximo dos ${eligibleList.length} aptos: ${target}v${target}`;
+    const targetLabel = `tamanho padrão mais próximo dos ${availableCount} disponíveis: ${target}v${target}`;
 
     return {
       target,
       targetLabel,
+      availableCount,
       currentWarSize,
       strictCount,
       whitelistCount,
