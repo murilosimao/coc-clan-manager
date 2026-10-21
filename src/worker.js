@@ -2,7 +2,11 @@ const PROFILE_API = 'https://clashapi.colinschmale.dev';
 const HISTORY_API = 'https://api.clashk.ing';
 const TTL = 60;
 const TAG = /^[0289PYLQGRJCUV]{3,15}$/;
-const PAGES_ORIGIN = 'https://murilosimao.github.io';
+const PAGES_ORIGINS = new Set([
+  'https://murilosimao.github.io',
+  'https://coc-purosangue.duckdns.org',
+  'http://coc-purosangue.duckdns.org',
+]);
 
 class APIError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -132,7 +136,7 @@ export default {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     const origin = request.headers.get('Origin');
-    const allowedOrigin = origin === url.origin || origin === PAGES_ORIGIN;
+    const allowedOrigin = origin === url.origin || PAGES_ORIGINS.has(origin);
     if ((origin && !allowedOrigin) || (!origin && request.headers.get('Sec-Fetch-Site') === 'cross-site')) {
       return json({ error: 'Consulte a API pelo site do Clan Manager.' }, 403);
     }

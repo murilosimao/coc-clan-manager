@@ -6,6 +6,8 @@
 
 O workflow `pages.yml` publica somente o HTML e JavaScript estáticos a cada alteração em `public/`. Nesse endereço, o frontend consulta a API do Worker por HTTPS, sem cookies ou chave. O Worker permite CORS especificamente para `https://murilosimao.github.io`, além de seu próprio domínio. Os demais domínios continuam bloqueados.
 
+O frontend e o Worker também estão preparados para `coc-purosangue.duckdns.org`. A ativação desse domínio depende de apontar o IPv4 do DuckDNS para o GitHub Pages (`185.199.108.153`), vinculá-lo nas configurações do Pages e concluir a emissão do certificado HTTPS. O Worker aceita esse host em HTTP e HTTPS durante a emissão do certificado; as consultas à API usam sempre HTTPS.
+
 Seleciona participantes para a próxima guerra a partir dos escudos atuais, membros do clã e desempenho na última guerra concluída. A escalação oficial é feita no jogo.
 
 ## Arquitetura
