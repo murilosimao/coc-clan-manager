@@ -36,7 +36,7 @@ Esse comando prepara o pacote de deploy localmente, sem publicar.
 ## Publicação manual
 
 ```sh
-npx wrangler login --use-keyring --scopes account:read user:read workers:write
+npx wrangler login --use-keyring --scopes account:read user:read workers:write workers_scripts:write
 npm run deploy
 ```
 
