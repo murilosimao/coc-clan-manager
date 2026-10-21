@@ -2,6 +2,10 @@
 
 **Site publicado:** https://coc-clan-manager.murilo-m-simao.workers.dev
 
+**GitHub Pages:** https://murilosimao.github.io/coc-clan-manager/
+
+O workflow `pages.yml` publica somente o HTML e JavaScript estáticos a cada alteração em `public/`. Nesse endereço, o frontend consulta a API do Worker por HTTPS, sem cookies ou chave. O Worker permite CORS especificamente para `https://murilosimao.github.io`, além de seu próprio domínio. Os demais domínios continuam bloqueados.
+
 Seleciona participantes para a próxima guerra a partir dos escudos atuais, membros do clã e desempenho na última guerra concluída. A escalação oficial é feita no jogo.
 
 ## Arquitetura

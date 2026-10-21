@@ -1,6 +1,9 @@
 (function () {
   'use strict';
   const { tagOf, normalizeWar, timestamp } = window.ClashKing;
+  // Public service URL, not a credential. Worker-hosted pages use the same origin.
+  const API_ORIGIN = location.hostname === 'murilosimao.github.io'
+    ? 'https://coc-clan-manager.murilo-m-simao.workers.dev' : '';
   const roles = { leader: 'Leader', coLeader: 'Co-leader', admin: 'Elder', member: 'Member' };
   const chunk = (items, size) => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
   const pathFor = (tag) => '/api/clans/' + encodeURIComponent('#' + tag);
@@ -9,7 +12,7 @@
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 45000);
     try {
-      const response = await fetch(path, { credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json' } });
+      const response = await fetch(API_ORIGIN + path, { credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json' } });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `A consulta falhou (${response.status}). Tente novamente.`);
       return data;

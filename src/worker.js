@@ -2,6 +2,7 @@ const PROFILE_API = 'https://clashapi.colinschmale.dev';
 const HISTORY_API = 'https://api.clashk.ing';
 const TTL = 60;
 const TAG = /^[0289PYLQGRJCUV]{3,15}$/;
+const PAGES_ORIGIN = 'https://murilosimao.github.io';
 
 class APIError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -83,10 +84,6 @@ function profile(data, expectedTag) {
 async function api(request, ctx) {
   const url = new URL(request.url);
   if (request.method !== 'GET') return json({ error: 'Método não permitido.' }, 405, { Allow: 'GET' });
-  const origin = request.headers.get('Origin');
-  if ((origin && origin !== url.origin) || request.headers.get('Sec-Fetch-Site') === 'cross-site') {
-    return json({ error: 'Consulte a API pelo site do Clan Manager.' }, 403);
-  }
   if (url.pathname === '/api/health') return json({ ok: true });
 
   if (url.pathname === '/api/players') {
@@ -132,12 +129,28 @@ async function api(request, ctx) {
 
 export default {
   async fetch(request, env, ctx) {
-    if (!new URL(request.url).pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
-    try { return await api(request, ctx); }
+    const url = new URL(request.url);
+    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    const origin = request.headers.get('Origin');
+    const allowedOrigin = origin === url.origin || origin === PAGES_ORIGIN;
+    if ((origin && !allowedOrigin) || (!origin && request.headers.get('Sec-Fetch-Site') === 'cross-site')) {
+      return json({ error: 'Consulte a API pelo site do Clan Manager.' }, 403);
+    }
+    const cors = (response) => {
+      if (!allowedOrigin) return response;
+      const headers = new Headers(response.headers);
+      headers.set('Access-Control-Allow-Origin', origin);
+      headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      headers.set('Access-Control-Allow-Headers', 'Accept');
+      headers.set('Vary', 'Origin');
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    };
+    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
+    try { return cors(await api(request, ctx)); }
     catch (error) {
-      if (error instanceof APIError) return json({ error: error.message }, error.status);
+      if (error instanceof APIError) return cors(json({ error: error.message }, error.status));
       // Never return stack traces, environment values, or upstream response bodies.
-      return json({ error: 'Não foi possível concluir a consulta. Tente novamente.' }, 500);
+      return cors(json({ error: 'Não foi possível concluir a consulta. Tente novamente.' }, 500));
     }
   },
 };
