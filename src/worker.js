@@ -258,6 +258,8 @@ async function api(request, ctx) {
       memberList: data.memberList.map((member) => ({
         tag: member.tag, name: member.name, townHallLevel: member.townHallLevel,
         role: member.role, clanRank: member.clanRank,
+        trophies: member.trophies != null && Number.isFinite(Number(member.trophies))
+          ? Number(member.trophies) : null,
       })),
     };
   });

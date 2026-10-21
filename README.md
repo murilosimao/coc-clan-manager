@@ -12,7 +12,7 @@ O domínio `coc-purosangue.duckdns.org` está vinculado ao Pages, com IPv4 `185.
 
 Seleciona participantes para a próxima guerra a partir dos escudos atuais, membros do clã e desempenho na última guerra concluída. A escalação oficial é feita no jogo.
 
-O tamanho padrão da escalação é calculado pela quantidade de jogadores com escudo verde: 36 ou 37 disponíveis resultam em 35; 38 ou 39 resultam em 40. Para completar um tamanho arredondado para cima, a escalação usa as reservas de menor prioridade e pode recorrer a escudos vermelhos somente como última opção. Bloqueios manuais continuam valendo.
+O tamanho padrão da escalação é calculado pela quantidade de jogadores com escudo verde: 36 ou 37 disponíveis resultam em 35; 38 ou 39 resultam em 40. Os reforços seguem a atividade do clã: mais troféus primeiro, depois melhor posição no ranking. O Centro da Vila não define a ordem. Escudos vermelhos só entram como última opção no arredondamento para cima; bloqueios manuais continuam valendo.
 
 ## Interface e uso
 
@@ -30,7 +30,7 @@ O redesenho foi iniciado em um worktree de `origin/main` (`43610a2`), na branch 
 
 O GitHub Pages publica a página estática, que consulta as rotas `/api/*` no Cloudflare Worker. O Worker também serve a mesma página em seu próprio endereço. Não é necessário manter um servidor.
 
-- **Membros, cargos, posições, escudos e guerra atual:** `clashapi.colinschmale.dev`, usando consultas públicas sem chave.
+- **Membros, cargos, posições, troféus, escudos e guerra atual:** `clashapi.colinschmale.dev`, usando consultas públicas sem chave.
 - **Histórico com ataques completos:** ClashKing (`api.clashk.ing`).
 - O Worker usa URLs fixas, sem aceitar um endereço de destino arbitrário, e não encaminha cookies ou credenciais do navegador.
 - Cache de 60 segundos nas respostas bem-sucedidas; são exibidos o momento da consulta e os avisos de dados ausentes.
