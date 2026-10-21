@@ -1,18 +1,20 @@
 # CoC Clan Manager
 
-**Site publicado:** https://coc-clan-manager.murilo-m-simao.workers.dev
+**Site principal:** https://coc-purosangue.duckdns.org/
+
+**Worker e API:** https://coc-clan-manager.murilo-m-simao.workers.dev
 
 **GitHub Pages:** https://murilosimao.github.io/coc-clan-manager/
 
 O workflow `pages.yml` publica somente o HTML e JavaScript estáticos a cada alteração em `public/`. Nesse endereço, o frontend consulta a API do Worker por HTTPS, sem cookies ou chave. O Worker permite CORS especificamente para `https://murilosimao.github.io`, além de seu próprio domínio. Os demais domínios continuam bloqueados.
 
-O frontend e o Worker também estão preparados para `coc-purosangue.duckdns.org`. A ativação desse domínio depende de apontar o IPv4 do DuckDNS para o GitHub Pages (`185.199.108.153`), vinculá-lo nas configurações do Pages e concluir a emissão do certificado HTTPS. O Worker aceita esse host em HTTP e HTTPS durante a emissão do certificado; as consultas à API usam sempre HTTPS.
+O domínio `coc-purosangue.duckdns.org` está vinculado ao Pages, com IPv4 `185.199.108.153` e certificado HTTPS. O Worker aceita esse host em HTTP e HTTPS; as consultas à API usam sempre HTTPS. A opção de exigir HTTPS está habilitada no Pages.
 
 Seleciona participantes para a próxima guerra a partir dos escudos atuais, membros do clã e desempenho na última guerra concluída. A escalação oficial é feita no jogo.
 
 ## Arquitetura
 
-Um Cloudflare Worker serve a página estática e as rotas `/api/*` no mesmo domínio. O navegador consulta apenas esse domínio. Não é necessário manter um servidor.
+O GitHub Pages publica a página estática, que consulta as rotas `/api/*` no Cloudflare Worker. O Worker também serve a mesma página em seu próprio endereço. Não é necessário manter um servidor.
 
 - **Membros, cargos, posições, escudos e guerra atual:** `clashapi.colinschmale.dev`, usando consultas públicas sem chave.
 - **Histórico com ataques completos:** ClashKing (`api.clashk.ing`).
@@ -59,7 +61,7 @@ O workflow `.github/workflows/deploy.yml` publica pushes em `main` ou pode ser a
 
 Até os dois valores serem configurados, o workflow informa que o deploy foi pulado. Os secrets só são passados ao processo de deploy; não são inseridos no HTML nem no código do Worker.
 
-O frontend público e `/api/*` são acessíveis a quem tiver o endereço. O repositório privado protege o código no GitHub, não restringe o acesso ao site publicado.
+O repositório, o frontend e os dados públicos retornados por `/api/*` são públicos. Credenciais de publicação ficam fora do código e dos arquivos estáticos.
 
 ## Credenciais
 
