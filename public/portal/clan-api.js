@@ -102,7 +102,7 @@
       }
     }));
     const unknown = members.filter((member) => member.pref === 'unknown').length;
-    if (unknown) warnings.push(`${unknown} perfis sem escudo confirmado. Eles permanecem fora da seleção enquanto o filtro de escudo estiver ligado.`);
+    if (unknown) warnings.push(`${unknown} perfis sem escudo confirmado. Eles permanecem elegíveis; somente escudo vermelho bloqueia.`);
 
     let lastWar = null;
     let currentWar = null;

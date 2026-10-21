@@ -19,5 +19,13 @@
       defenses: defenses.length,
     };
   }
-  window.WarStats = { summarize };
+  function latestCompletedRegularWar(items) {
+    return items.filter((war) => war.type === 'random'
+      && war.state === 'warEnded'
+      && Number(war.attacksPerMember) === 2
+      && Number.isFinite(window.ClashKing.timestamp(war.endTime))
+      && window.ClashKing.timestamp(war.endTime) <= Date.now())
+      .sort((a, b) => window.ClashKing.timestamp(b.endTime) - window.ClashKing.timestamp(a.endTime))[0] || null;
+  }
+  window.WarStats = { summarize, latestCompletedRegularWar };
 })();
