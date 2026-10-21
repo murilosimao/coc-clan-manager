@@ -61,6 +61,7 @@
       <div class="offline-note">Carregue uma captura que contenha os membros e a guerra concluída. Os dados importados são da data da captura.</div>
     </details>
   </div>
+  <span class="offline-note">Para diagnóstico, registramos ações desta aba com um ID temporário. Os logs personalizados não incluem IP completo, nomes ou tags de jogadores, conteúdo do HAR ou credenciais.</span>
 </div>
 <noscript>Ative o JavaScript para consultar os dados do clã e montar a seleção.</noscript>
 <script src="portal/clashking.js"></script>
@@ -1424,6 +1425,7 @@
 
     const tag = normalizeTag(checkbox.getAttribute('data-tag'));
     const list = checkbox.getAttribute('data-list');
+    window.ClanAPI.audit(`${list}_${checkbox.checked ? 'added' : 'removed'}`);
     const whitelist = new Set(state.settings.whitelist || []);
     const blacklist = new Set(state.settings.blacklist || []);
     const forcedIn = new Set(state.settings.forcedIn || []);
@@ -1469,11 +1471,13 @@
   function handleListAction(event) {
     const button = event.target.closest('button[data-action="prune-stale"]');
     if (button) {
+      window.ClanAPI.audit('stale_lists_pruned');
       pruneStaleLists();
     }
   }
 
   function clearList(listName) {
+    window.ClanAPI.audit(`${listName}_cleared`);
     state.settings[listName] = [];
     saveSettings();
     renderListsModal();
@@ -1545,6 +1549,8 @@
       state.settings[key] = target.value;
     }
 
+    window.ClanAPI.audit('setting_changed', { setting: key, value: state.settings[key] });
+
     saveSettings();
     render();
   }
@@ -1579,6 +1585,15 @@
       blacklist.delete(tag);
     }
 
+    const auditAction = {
+      'force-in': 'manual_inclusion',
+      'force-out': 'manual_removal',
+      'clear-force': 'manual_override_cleared',
+      'remove-whitelist': 'whitelist_removed',
+      'remove-blacklist': 'blacklist_removed',
+    }[action];
+    if (auditAction) window.ClanAPI.audit(auditAction);
+
     state.settings.forcedIn = [...forcedIn];
     state.settings.forcedOut = [...forcedOut];
     state.settings.whitelist = [...whitelist];
@@ -1589,6 +1604,7 @@
 
   async function handleLoad() {
     if (state.loading) return;
+    window.ClanAPI.audit('clan_load_started');
 
     const requestedTag = normalizeTag($('#ws-clan').value) || DEFAULT_CLAN;
     state.clanTag = requestedTag;
@@ -1603,7 +1619,9 @@
 
     try {
       await loadClanData(requestedTag);
+      window.ClanAPI.audit('clan_load_succeeded');
     } catch (error) {
+      window.ClanAPI.audit('clan_load_failed');
       state.error = error.message || String(error);
       setStatus(state.error, 'error');
       render();
@@ -2178,7 +2196,10 @@
     const lines = selection.selected.map((row) => `${row.member.name} (#${row.member.tag})`);
     const textToCopy = lines.join('\n');
 
-    const done = () => setStatus(`Lista copiada: ${lines.length} jogadores.`, 'ok');
+    const done = () => {
+      window.ClanAPI.audit('selection_copied');
+      setStatus(`Lista copiada: ${lines.length} jogadores.`, 'ok');
+    };
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(textToCopy).then(done).catch(() => fallbackCopy(textToCopy, done));
     } else {
@@ -2263,6 +2284,7 @@
     document.body.appendChild(a);
     a.click();
     a.remove();
+    window.ClanAPI.audit('selection_exported');
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
@@ -2276,6 +2298,7 @@
   }
 
   function boot() {
+    window.ClanAPI.audit('page_view');
     loadSettings();
     const urlTag = clanTagFromUrl();
     if (urlTag) state.clanTag = urlTag;
@@ -2369,6 +2392,7 @@
       const currentWar = structuredClone(demo.currentWar);
       setData(members, lastWar, currentWar, '2G8QCR92V',
         'Demo de 20/10/2026: 45 membros, última guerra #285899841.');
+      window.ClanAPI.audit('demo_loaded');
     } catch (error) {
       console.error(error);
       const state = window.__warSelectorDebug.state;
@@ -2455,6 +2479,7 @@
 
       setData(members, lastWar, currentWar, tag,
         `HAR carregado: ${members.length} membros, última guerra #${lastWarId}.`);
+      window.ClanAPI.audit('har_loaded');
     } catch (error) {
       state.loading = false;
       state.error = 'Falha ao ler o HAR: ' + error.message;

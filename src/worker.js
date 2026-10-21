@@ -7,6 +7,18 @@ const PAGES_ORIGINS = new Set([
   'https://coc-purosangue.duckdns.org',
   'http://coc-purosangue.duckdns.org',
 ]);
+const AUDIT_ACTIONS = new Set([
+  'page_view', 'clan_load_started', 'clan_load_succeeded', 'clan_load_failed',
+  'demo_loaded', 'har_loaded', 'selection_copied', 'selection_exported',
+  'whitelist_added', 'whitelist_removed', 'blacklist_added', 'blacklist_removed',
+  'whitelist_cleared', 'blacklist_cleared', 'stale_lists_pruned',
+  'manual_inclusion', 'manual_removal', 'manual_override_cleared', 'setting_changed',
+]);
+const AUDIT_SETTINGS = new Set([
+  'excludeRed', 'requireTwoAttacks', 'requireOneStar', 'requireTriple',
+  'allowNoWarData', 'rankBy', 'targetMode', 'fixedSize', 'maxFill', 'maxTrim', 'fillFrom',
+]);
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 class APIError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -36,6 +48,82 @@ async function pool(items, limit, run) {
     }
   }));
   return results;
+}
+
+function safeRoute(pathname) {
+  if (pathname === '/api/health') return 'health';
+  if (pathname === '/api/audit') return 'site_action';
+  if (pathname === '/api/players') return 'player_profiles';
+  const match = pathname.match(/^\/api\/clans\/[^/]+(?:\/(wars|currentwar))?$/);
+  if (!match) return 'other';
+  if (match[1] === 'wars') return 'clan_war_history';
+  if (match[1] === 'currentwar') return 'clan_current_war';
+  return 'clan_details';
+}
+
+function logApiRequest(request, response, startedAt) {
+  if (request.method === 'OPTIONS') return response;
+  const sessionId = request.headers.get('X-App-Session');
+  console.log({
+    type: 'api_request',
+    session_id: sessionId && SESSION_ID.test(sessionId) ? sessionId : null,
+    request_id: request.headers.get('cf-ray')?.split('-')[0] || null,
+    route: safeRoute(new URL(request.url).pathname),
+    method: request.method,
+    status: response.status,
+    duration_ms: Date.now() - startedAt,
+  });
+  return response;
+}
+
+async function readSmallJson(request, maxBytes = 1024) {
+  const declaredLength = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new APIError(413, 'Evento muito grande.');
+  if (!request.body) throw new APIError(400, 'Evento inválido.');
+  const reader = request.body.getReader();
+  const chunks = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > maxBytes) {
+      await reader.cancel();
+      throw new APIError(413, 'Evento muito grande.');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  try { return JSON.parse(new TextDecoder().decode(bytes)); }
+  catch { throw new APIError(400, 'Evento inválido.'); }
+}
+
+async function audit(request, startedAt) {
+  if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405, { Allow: 'POST, OPTIONS' });
+  if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) {
+    throw new APIError(415, 'Formato de evento inválido.');
+  }
+  const payload = await readSmallJson(request);
+  const { sessionId, action } = payload || {};
+  if (typeof sessionId !== 'string' || !SESSION_ID.test(sessionId) || !AUDIT_ACTIONS.has(action)) {
+    throw new APIError(400, 'Evento inválido.');
+  }
+  const entry = {
+    type: 'site_action', session_id: sessionId, action,
+    request_id: request.headers.get('cf-ray')?.split('-')[0] || null,
+    status: 202, duration_ms: Date.now() - startedAt,
+  };
+  if (action === 'setting_changed' && AUDIT_SETTINGS.has(payload.setting)) {
+    entry.setting = payload.setting;
+    const value = payload.value;
+    if (typeof value === 'boolean') entry.value = value;
+    else if (typeof value === 'number' && Number.isFinite(value)) entry.value = Math.max(0, Math.min(50, value));
+    else if (typeof value === 'string' && value.length <= 20 && /^[a-zA-Z0-9_-]+$/.test(value)) entry.value = value;
+  }
+  console.log(entry);
+  return json({ ok: true }, 202);
 }
 
 // Upstream hosts and paths are fixed by our routes. Never forward cookies,
@@ -87,6 +175,7 @@ function profile(data, expectedTag) {
 
 async function api(request, ctx) {
   const url = new URL(request.url);
+  if (url.pathname === '/api/audit') return audit(request, Date.now());
   if (request.method !== 'GET') return json({ error: 'Método não permitido.' }, 405, { Allow: 'GET' });
   if (url.pathname === '/api/health') return json({ ok: true });
 
@@ -133,28 +222,33 @@ async function api(request, ctx) {
 
 export default {
   async fetch(request, env, ctx) {
+    const startedAt = Date.now();
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     const origin = request.headers.get('Origin');
     const allowedOrigin = origin === url.origin || PAGES_ORIGINS.has(origin);
     if ((origin && !allowedOrigin) || (!origin && request.headers.get('Sec-Fetch-Site') === 'cross-site')) {
-      return json({ error: 'Consulte a API pelo site do Clan Manager.' }, 403);
+      return logApiRequest(request, json({ error: 'Consulte a API pelo site do Clan Manager.' }, 403), startedAt);
     }
     const cors = (response) => {
       if (!allowedOrigin) return response;
       const headers = new Headers(response.headers);
       headers.set('Access-Control-Allow-Origin', origin);
-      headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      headers.set('Access-Control-Allow-Headers', 'Accept');
+      headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      headers.set('Access-Control-Allow-Headers', 'Accept, Content-Type, X-App-Session');
+      headers.set('Access-Control-Max-Age', '86400');
       headers.set('Vary', 'Origin');
       return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
     };
     if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
-    try { return cors(await api(request, ctx)); }
+    if (url.pathname === '/api/audit' && (!origin || !allowedOrigin)) {
+      return logApiRequest(request, json({ error: 'Origem não permitida.' }, 403), startedAt);
+    }
+    try { return logApiRequest(request, cors(await api(request, ctx)), startedAt); }
     catch (error) {
-      if (error instanceof APIError) return cors(json({ error: error.message }, error.status));
+      if (error instanceof APIError) return logApiRequest(request, cors(json({ error: error.message }, error.status)), startedAt);
       // Never return stack traces, environment values, or upstream response bodies.
-      return cors(json({ error: 'Não foi possível concluir a consulta. Tente novamente.' }, 500));
+      return logApiRequest(request, cors(json({ error: 'Não foi possível concluir a consulta. Tente novamente.' }, 500)), startedAt);
     }
   },
 };

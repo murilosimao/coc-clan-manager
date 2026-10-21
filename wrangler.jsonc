@@ -9,5 +9,11 @@
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
   },
-  "observability": { "enabled": false }
+  "observability": {
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    }
+  }
 }

@@ -6,7 +6,7 @@
 
 **GitHub Pages:** https://murilosimao.github.io/coc-clan-manager/
 
-O workflow `pages.yml` publica somente o HTML e JavaScript estáticos a cada alteração em `public/`. Nesse endereço, o frontend consulta a API do Worker por HTTPS, sem cookies ou chave. O Worker permite CORS especificamente para `https://murilosimao.github.io`, além de seu próprio domínio. Os demais domínios continuam bloqueados.
+O workflow `pages.yml` publica somente o HTML e JavaScript estáticos a cada alteração em `public/`. Nesse endereço, o frontend consulta a API do Worker por HTTPS, sem cookies ou chave. O Worker permite CORS especificamente para `https://murilosimao.github.io` e `https://coc-purosangue.duckdns.org`, além de seu próprio domínio. Os demais domínios continuam bloqueados.
 
 O domínio `coc-purosangue.duckdns.org` está vinculado ao Pages, com IPv4 `185.199.108.153` e certificado HTTPS. O Worker aceita esse host em HTTP e HTTPS; as consultas à API usam sempre HTTPS. A opção de exigir HTTPS está habilitada no Pages.
 
@@ -23,6 +23,7 @@ O GitHub Pages publica a página estática, que consulta as rotas `/api/*` no Cl
 - Os jogadores são consultados em lotes de cinco. Cada invocação usa no máximo cinco consultas externas e três conexões simultâneas.
 - Perfis indisponíveis ou que já não pertençam ao clã ficam com escudo desconhecido, excluído enquanto o filtro estiver ligado. Confirmações manuais antigas não substituem os dados da API.
 - Histórico ausente ou incompleto é identificado. A demo é sempre uma fonte separada.
+- Workers Logs registra chamadas da API por categoria e ações básicas da página. Usa um UUID temporário por aba para agrupar a sessão; os logs personalizados não incluem IP completo, nomes ou tags de jogadores, conteúdo de HAR, cabeçalhos ou credenciais. Os logs automáticos de invocação ficam desligados para não persistir URLs com parâmetros. No plano gratuito, a Cloudflare informa retenção de 3 dias e limite de 200 mil eventos por dia.
 
 Os provedores são serviços externos e podem mudar a disponibilidade ou atrasar dados. O cache não garante que um escudo alterado no jogo apareça imediatamente.
 
@@ -51,6 +52,8 @@ npm run deploy
 ```
 
 A autorização acontece na Cloudflare. O parâmetro `--use-keyring` guarda a credencial no gerenciador de credenciais do sistema operacional, fora do projeto. A URL pública é informada ao terminar o deploy. O Worker se chama `coc-clan-manager`.
+
+Para consultar os logs, abra **Workers & Pages → coc-clan-manager → Observability → Logs**. `npx wrangler tail` acompanha as mensagens `console.log()` em tempo real.
 
 ## Publicação pelo GitHub Actions
 

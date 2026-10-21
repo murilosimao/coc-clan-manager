@@ -7,12 +7,44 @@
   const roles = { leader: 'Leader', coLeader: 'Co-leader', admin: 'Elder', member: 'Member' };
   const chunk = (items, size) => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
   const pathFor = (tag) => '/api/clans/' + encodeURIComponent('#' + tag);
+  const sessionKey = 'coc-clan-manager-session';
+  let fallbackSessionId = '';
+
+  function createSessionId() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  function getSessionId() {
+    try {
+      let id = sessionStorage.getItem(sessionKey);
+      if (!id) { id = createSessionId(); sessionStorage.setItem(sessionKey, id); }
+      return id;
+    } catch {
+      if (!fallbackSessionId) fallbackSessionId = createSessionId();
+      return fallbackSessionId;
+    }
+  }
+
+  function audit(action, details = {}) {
+    const sessionId = getSessionId();
+    fetch(API_ORIGIN + '/api/audit', {
+      method: 'POST', credentials: 'omit', keepalive: true,
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-App-Session': sessionId },
+      body: JSON.stringify({ sessionId, action, ...details }),
+    }).catch(() => {});
+  }
 
   async function request(path) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 45000);
     try {
-      const response = await fetch(API_ORIGIN + path, { credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json' } });
+      const response = await fetch(API_ORIGIN + path, { credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json', 'X-App-Session': getSessionId() } });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `A consulta falhou (${response.status}). Tente novamente.`);
       return data;
@@ -101,5 +133,5 @@
       memberSource: 'clashapi.colinschmale.dev',
     };
   }
-  window.ClanAPI = { loadClan };
+  window.ClanAPI = { loadClan, audit };
 })();
