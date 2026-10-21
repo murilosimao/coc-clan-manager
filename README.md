@@ -1,5 +1,7 @@
 # CoC Clan Manager
 
+**Site publicado:** https://coc-clan-manager.murilo-m-simao.workers.dev
+
 Seleciona participantes para a próxima guerra a partir dos escudos atuais, membros do clã e desempenho na última guerra concluída. A escalação oficial é feita no jogo.
 
 ## Arquitetura
