@@ -1,3 +1,5 @@
+import { handleCwl } from './cwl/router.js';
+import { CwlError } from './cwl/errors.js';
 const PROFILE_API = 'https://clashapi.colinschmale.dev';
 const HISTORY_API = 'https://api.clashk.ing';
 const TTL = 60;
@@ -65,6 +67,8 @@ function safeRoute(pathname) {
   if (pathname === '/api/health') return 'health';
   if (pathname === '/api/audit') return 'site_action';
   if (pathname === '/api/players') return 'player_profiles';
+  if (pathname.startsWith('/api/cwl/')) return 'cwl_' + (pathname.endsWith('/revisions') ? 'revision' : pathname.endsWith('/reviews') ? 'review' : pathname.endsWith('/sync') ? 'sync' : 'read');
+  if (/^\/api\/clans\/[^/]+\/score-history$/.test(pathname)) return 'war_score_history';
   if (/^\/api\/players\/[^/]+\/war-stats$/.test(pathname)) return 'player_war_statistics';
   const match = pathname.match(/^\/api\/clans\/[^/]+(?:\/(wars|currentwar))?$/);
   if (!match) return 'other';
@@ -210,11 +214,41 @@ function playerWarStats(data, expectedTag) {
   }) };
 }
 
-async function api(request, ctx) {
+async function api(request, ctx, env, cwlHandler = handleCwl) {
   const url = new URL(request.url);
+  if (url.pathname.startsWith('/api/cwl/')) return cwlHandler(request, env);
   if (url.pathname === '/api/audit') return audit(request, Date.now());
   if (request.method !== 'GET') return json({ error: 'Método não permitido.' }, 405, { Allow: 'GET' });
   if (url.pathname === '/api/health') return json({ ok: true });
+
+  const scoreMatch = url.pathname.match(/^\/api\/clans\/([^/]+)\/score-history$/);
+  if (scoreMatch) {
+    const tag = tagOf(decodeURIComponent(scoreMatch[1]));
+    const type = url.searchParams.get('type');
+    if (!['random', 'cwl'].includes(type)) throw new APIError(400, 'Informe o tipo random ou cwl.');
+    const result = await upstream(HISTORY_API, `/v2/clan/${encodeURIComponent('#' + tag)}/wars?limit=30&type=${type}`, ctx, (data) => {
+      if (!Array.isArray(data?.items)) throw new APIError(502, 'Histórico de scores indisponível.');
+      const side = (value) => ({
+        tag: value?.tag, name: value?.name, attacks: value?.attacks,
+        members: Array.isArray(value?.members) ? value.members.map((member) => ({
+          tag: member.tag, name: member.name, townhallLevel: member.townhallLevel ?? member.townHallLevel,
+          mapPosition: member.mapPosition,
+          attacks: Array.isArray(member.attacks) ? member.attacks.map((attack) => ({
+            attackerTag: attack.attackerTag || member.tag, defenderTag: attack.defenderTag,
+            stars: attack.stars, destructionPercentage: attack.destructionPercentage, order: attack.order,
+          })) : [],
+        })) : [],
+      });
+      return { items: data.items.slice(0, 30).map((war) => ({
+        type: war.type || type, state: war.state, battleModifier: typeof war.battleModifier === 'string' ? war.battleModifier : null,
+        startTime: war.startTime, endTime: war.endTime, preparationStartTime: war.preparationStartTime,
+        season: typeof war.season === 'string' ? war.season : null,
+        teamSize: war.teamSize, attacksPerMember: war.attacksPerMember,
+        clan: side(war.clan), opponent: side(war.opponent),
+      })) };
+    });
+    return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashking', clanTag: '#' + tag, type, cacheSeconds: TTL });
+  }
 
   if (url.pathname === '/api/players') {
     const values = url.searchParams.get('tags')?.split(',') || [];
@@ -266,7 +300,7 @@ async function api(request, ctx) {
   return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashapi.colinschmale.dev' });
 }
 
-export default {
+export function createWorker(cwlHandler = handleCwl) { return {
   async fetch(request, env, ctx) {
     const startedAt = Date.now();
     const url = new URL(request.url);
@@ -281,7 +315,7 @@ export default {
       const headers = new Headers(response.headers);
       headers.set('Access-Control-Allow-Origin', origin);
       headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      headers.set('Access-Control-Allow-Headers', 'Accept, Content-Type, X-App-Session');
+      headers.set('Access-Control-Allow-Headers', 'Accept, Content-Type, X-App-Session, Authorization');
       headers.set('Access-Control-Max-Age', '86400');
       headers.set('Vary', 'Origin');
       return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
@@ -290,11 +324,12 @@ export default {
     if (url.pathname === '/api/audit' && (!origin || !allowedOrigin)) {
       return logApiRequest(request, json({ error: 'Origem não permitida.' }, 403), startedAt);
     }
-    try { return logApiRequest(request, cors(await api(request, ctx)), startedAt); }
+    try { return logApiRequest(request, cors(await api(request, ctx, env, cwlHandler)), startedAt); }
     catch (error) {
-      if (error instanceof APIError) return logApiRequest(request, cors(json({ error: error.message }, error.status)), startedAt);
+      if (error instanceof APIError || error instanceof CwlError) return logApiRequest(request, cors(json({ error: error.message, ...(error.code ? { code: error.code } : {}) }, error.status)), startedAt);
       // Never return stack traces, environment values, or upstream response bodies.
       return logApiRequest(request, cors(json({ error: 'Não foi possível concluir a consulta. Tente novamente.' }, 500)), startedAt);
     }
   },
-};
+}; }
+export default createWorker();

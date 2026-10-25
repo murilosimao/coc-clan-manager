@@ -190,5 +190,32 @@
     if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag)) throw new Error('Tag de jogador inválida.');
     return request('/api/players/' + encodeURIComponent('#' + tag) + '/war-stats');
   }
-  window.ClanAPI = { loadClan, loadPlayerStats, audit };
+  const scoreHistoryCache = new Map();
+  async function loadScoreHistory(clanTag, type) {
+    const tag = tagOf(clanTag);
+    if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag) || !['random', 'cwl'].includes(type)) throw new Error('Consulta de score inválida.');
+    const key = tag + ':' + type;
+    const cached = scoreHistoryCache.get(key);
+    if (cached && Date.now() - cached.at < 60000) return cached.promise;
+    const promise = request(pathFor(tag) + '/score-history?type=' + type);
+    scoreHistoryCache.set(key, { at: Date.now(), promise });
+    try { return await promise; } catch (error) { scoreHistoryCache.delete(key); throw error; }
+  }
+  const cwlClan = tag => {
+    const value = tagOf(tag);
+    if (!/^[0289PYLQGRJCUV]{3,15}$/.test(value)) throw new Error('Tag de clã inválida.');
+    return '/api/cwl/clans/' + encodeURIComponent('#' + value);
+  };
+  const cwlSeason = season => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(season)) throw new Error('Escolha uma edição válida da Liga.');
+    return '/seasons/' + season;
+  };
+  function loadCwlPlan(tag, start) {
+    if (!/^\d{8}T\d{6}\.\d{3}Z$/.test(start)) throw new Error('Escolha uma guerra válida.');
+    return request(cwlClan(tag) + '/wars/' + encodeURIComponent(start) + '/plan');
+  }
+  window.ClanAPI = { loadClan, loadPlayerStats, loadScoreHistory, audit,
+    loadCwlSeason: (tag, season) => request(cwlClan(tag) + cwlSeason(season)),
+    loadCwlAnalytics: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/analytics'),
+    loadCwlRanking: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/ranking'), loadCwlPlan };
 })();

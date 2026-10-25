@@ -43,6 +43,20 @@ Os provedores são serviços externos e podem mudar a disponibilidade ou atrasar
 
 ## Desenvolvimento
 
+### Scores de ataque e defesa nas guerras
+
+Em **Guerras**, cada participante dos dois lados recebe ATQ e DEF. O histórico carrega em segundo plano e usa apenas guerras concluídas anteriores ao início da guerra analisada, com o mesmo modificador. As notas não alteram a convocação nem escolhem alvos pelos jogadores. Cada ataque mostra a dificuldade relativa do alvo realmente escolhido e, quando há amostra suficiente, se o resultado ficou abaixo da referência.
+
+Clique em **ATQ** ou **DEF** para ver a fórmula substituída pelos valores do jogador, ataques/defesas usados, pesos, parâmetros aprendidos e registros excluídos. Ambos usam guerras normais dos últimos 14 dias e as duas últimas edições de CWL de cada clã, anteriores à guerra analisada. **Exportar cálculo TSV** inclui toda a base e parâmetros para auditoria. Notas de jogadores sem histórico ficam em 50, identificadas como referência. A versão é experimental e usa guerras/CWL; Ranked e níveis históricos de heróis/tropas/equipamentos ficam fora quando não confirmados. A fórmula e as limitações estão em [docs/war-scores.md](docs/war-scores.md).
+
+### Backend CWL com PostgreSQL
+
+O planejamento síncrono, persistência do plano inicial, revisões da líder e métricas de calibração estão documentados em [docs/cwl-backend.md](docs/cwl-backend.md). O ranking usa a política versionada [cwl-merit-v1](docs/cwl-ranking.md), com memória de cálculo por missão e desempates por destruição e duração. Ambiente local: `npm run db:setup`, `npm run db:up`, `npm run db:migrate`, `npm run dev -- --port 8791`. Integração com PostgreSQL real: `npm run test:cwl`.
+
+A aba **Liga CWL** apresenta plano do dia e ranking, com explicações expansíveis e exportação TSV da visão atual. A [documentação do frontend](docs/cwl-frontend.md) explica os estados, a atualização de dias acompanhados e a revisão local. Para explorar o exemplo ilustrativo: `http://127.0.0.1:8791/?demo=1&view=cwl`. Para verificar os fluxos no navegador: `npm run test:ui`, com o preview local em execução.
+
+### Servidor de desenvolvimento
+
 Requer Node.js 22 ou superior.
 
 ```sh
