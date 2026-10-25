@@ -13,7 +13,7 @@
     "db:setup": "node scripts/setup-cwl-local.mjs",
     "db:up": "docker compose up -d --wait postgres",
     "db:migrate": "node --env-file=.env scripts/migrate-cwl.mjs",
-    "test:cwl": "node --env-file=.env --test --test-concurrency=1 tests/cwl-planner.test.mjs tests/cwl-ranking.test.mjs tests/cwl.test.mjs",
+    "test:cwl": "node --env-file=.env --test --test-concurrency=1 tests/cwl-planner.test.mjs tests/cwl-player-history.test.mjs tests/cwl-ranking.test.mjs tests/cwl.test.mjs",
     "simulate:cwl": "node scripts/simulate-cwl.mjs"
   },
   "devDependencies": {

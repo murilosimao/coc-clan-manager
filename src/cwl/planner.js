@@ -1,7 +1,7 @@
 import { WarScores as S, ClashKing } from './scoring.js';
 import { requireCondition, timestamp } from './errors.js';
 
-export const PLANNER_VERSION = 'cwl-assignment-v1.1';
+export const PLANNER_VERSION = 'cwl-assignment-v2';
 export const DEFAULT_CONFIG = Object.freeze({ goalSupport: 0.70 });
 const sigmoid = x => x >= 0 ? 1 / (1 + Math.exp(-x)) : Math.exp(x) / (1 + Math.exp(x));
 
@@ -93,8 +93,10 @@ export function planWar({ raw, clanTag, history, config = DEFAULT_CONFIG }) {
     return { attackerTag: attacker.tag, defenderTag: defender.tag, attackerName: attacker.name, defenderName: defender.name,
       attackerCV: attacker.th, defenderCV: defender.th, attackScore: a.attackScore, defenseScore: d.defenseScore,
       attackCount: a.attackCount, defenseCount: d.defenseCount, attackWeight: a.attackWeight, defenseWeight: d.defenseWeight,
+      attackEvidence: S.evidence(a, 'attack'), defenseEvidence: S.evidence(d, 'defense'),
       expectedStars, expectedGain, targetStarsBeforePlan: before, targetAttackedBeforePlan: best.has(defender.tag), probabilities, goalStars, goalSupport: tails[goalStars - 1], warnings,
-      evidence: warnings.length ? 'limited' : 'supported', eta };
+      evidence: warnings.length ? 'limited' : 'supported', reviewRequired: warnings.length > 0,
+      goalStatus: warnings.includes('cv_gap_outside_model_range') ? 'outside_model_range' : !supported.length ? 'reference' : warnings.length ? 'limited' : 'supported', eta };
   }));
   const rowIds = war.roster.flatMap((p, i) => used.has(p.tag) ? [] : [i]);
   const columnIds = war.opponentRoster.flatMap((p, i) => (best.get(p.tag) || 0) === 3 ? [] : [i]);

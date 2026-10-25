@@ -80,9 +80,9 @@ Uma revisão só pode apontar uma versão aprovada antes do ataque conhecido/det
 
 ## Cálculo e metas
 
-O normalizador preserva `sourcePosition` do ClashKing. Em CWLs com elenco ativo completo e posições válidas/únicas de 1 a 50, ele ordena os participantes e calcula a posição ativa de 1 a N. Isso permite consumir registros que usam posições esparsas do elenco da Liga e mantém o espelho entre as duas escalações. Posições inválidas, duplicidades e elencos incompletos continuam recusados. A correção está identificada como `cwl-assignment-v1.1`; os pesos do score não foram alterados e planos antigos persistidos não são recalculados.
+O normalizador preserva `sourcePosition` do ClashKing. Em CWLs com elenco ativo completo e posições válidas/únicas de 1 a 50, ele ordena os participantes e calcula a posição ativa de 1 a N. Isso permite consumir registros que usam posições esparsas do elenco da Liga e mantém o espelho entre as duas escalações. Posições inválidas, duplicidades e elencos incompletos continuam recusados.
 
-O backend reutiliza `public/portal/war-scores.js`: mesmas janelas de 14 dias de guerras normais e duas CWLs, corte anterior à guerra analisada, modificador exato, efeitos separados por jogador/CV e regularização. O snapshot preserva os dados usados, parâmetros, coeficientes, limiares, escalas e avisos das fontes.
+O backend reutiliza `public/portal/war-scores.js` (`war-ordinal-v2`): mesmas janelas de 14 dias de guerras normais e duas CWLs, corte anterior à guerra analisada, modificador exato, efeitos separados por jogador/CV e regularização. O provedor ainda recupera guerras completas referenciadas pelo histórico individual de jogadores com pouca evidência, inclusive de clãs anteriores. Ele valida cada guerra completa, aplica os mesmos filtros temporais e de modificador e preserva avisos quando há falha ou limite de consulta. O snapshot preserva os dados usados, versão da política de histórico, parâmetros, coeficientes, limiares, escalas e avisos das fontes.
 
 Para cada confronto, os três cortes do modelo ordinal geram uma distribuição de estrelas de 0 a 3. O valor de uma atribuição é:
 
@@ -90,7 +90,7 @@ Para cada confronto, os três cortes do modelo ordinal geram uma distribuição 
 
 O algoritmo húngaro maximiza a soma desses valores, atribuindo um alvo distinto a cada ataque restante. Não se otimiza a soma de `ATQ-DEF`, que não distinguiria distribuições completas. A matriz fica preservada para auditoria e para comparar alterações manuais.
 
-A meta é o maior número de estrelas acima do resultado atual com sustentação maior ou igual a `goalSupport`. Nesta versão experimental o valor é **0,70**, gravado no plano. Se não houver nível sustentado, sugere-se a próxima estrela com aviso explícito. Esse parâmetro é uma hipótese inicial, **ainda não uma probabilidade individual calibrada**. Histórico insuficiente e diferenças de CV além do intervalo do modelo ficam sinalizados; todos os jogadores permanecem no plano.
+A meta é o maior número de estrelas acima do resultado atual com sustentação maior ou igual a `goalSupport`. Nesta versão experimental o valor é **0,70**, gravado no plano. Se não houver nível sustentado, sugere-se a próxima estrela com aviso explícito. Esse parâmetro é uma hipótese inicial, **ainda não uma probabilidade individual calibrada**. Histórico insuficiente e diferenças de CV além de três níveis ficam sinalizados para revisão manual; todos os jogadores permanecem no plano. O algoritmo de atribuição e o limiar permanecem iguais ao snapshot funcional.
 
 No primeiro acesso com guerra já em andamento, só ataques ainda disponíveis são distribuídos; bases triplicadas são retiradas e o ganho adicional considera o placar existente. Resultados já existentes ficam `before_plan`. Uma guerra já encerrada pode gerar reconstrução `retrospective:true`, útil para auditoria estatística, sem possibilidade de aprovação e sem atribuir missões oficiais a ataques passados.
 

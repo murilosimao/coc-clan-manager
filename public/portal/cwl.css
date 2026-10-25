@@ -94,6 +94,10 @@ body[data-view="cwl"] .clan-heading .refresh-button { display:none; }
 .cwl-inline-score>span { color:var(--muted); font-size:9px; font-weight:600; }
 .cwl-inline-score>b { color:var(--gold); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
 .cwl-inline-score.is-unknown>b { color:var(--muted); }
+.cwl-inline-score.is-reference { border-style:dashed; }
+.cwl-inline-score.is-reference>b { color:var(--muted); }
+.cwl-inline-score.is-limited { border-color:#80683a; border-style:dashed; }
+.cwl-evidence-note { color:#e4bc73!important; font-size:10px!important; line-height:1.35; }
 .cwl-goal-select { width:100%; max-width:150px; min-height:44px; padding:7px 9px; border:1px solid var(--gold); border-radius:4px; background:var(--surface); color:var(--text); font-size:13px; }
 .cwl-th { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:11px; }
 .cwl-th img { width:29px; height:29px; object-fit:contain; }

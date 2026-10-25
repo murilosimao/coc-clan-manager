@@ -1,0 +1,156 @@
+{
+  "createdAt": "2026-10-25T15:04:03.087Z",
+  "baselineCommit": "108430d",
+  "candidateSourceHash": "3ad0bae046cfe1f38004dd6bc4e06d0579ac3452f28e0e23557e095d36837057",
+  "poolWars": 10353,
+  "protocol": "Parameters selected by mean clan RPS on first four September rounds. Last three September rounds are validation. October is comparison with the frozen snapshot, including the prior external cohort. No October metric selected a parameter.",
+  "results": [
+    {
+      "variant": "snapshot",
+      "selection": {
+        "n": 545,
+        "coverage": 0.1743119266055046,
+        "rps": 0.09259366410156396,
+        "macroRps": 0.08774642188551936,
+        "observedPT": 0.6256880733944954,
+        "estimatedPT": 0.6096579873959891
+      },
+      "validation": {
+        "n": 398,
+        "coverage": 0.36180904522613067,
+        "rps": 0.08177788812119433,
+        "macroRps": 0.0809348690029774,
+        "observedPT": 0.6306532663316583,
+        "estimatedPT": 0.6396923550939803
+      },
+      "october": {
+        "n": 1356,
+        "coverage": 0.3893805309734513,
+        "rps": 0.0896598014622551,
+        "macroRps": 0.08865720721019223,
+        "observedPT": 0.56047197640118,
+        "estimatedPT": 0.5803137456414156
+      }
+    },
+    {
+      "variant": "personal-p2",
+      "selection": {
+        "n": 545,
+        "coverage": 0.1798165137614679,
+        "rps": 0.09273648071664142,
+        "macroRps": 0.08797237188795497,
+        "observedPT": 0.6256880733944954,
+        "estimatedPT": 0.6116969261482036
+      },
+      "validation": {
+        "n": 398,
+        "coverage": 0.37185929648241206,
+        "rps": 0.08147229924432701,
+        "macroRps": 0.08063599194041693,
+        "observedPT": 0.6306532663316583,
+        "estimatedPT": 0.6418604734739485
+      }
+    },
+    {
+      "variant": "personal-p1",
+      "selection": {
+        "n": 545,
+        "coverage": 0.1798165137614679,
+        "rps": 0.09002991882536972,
+        "macroRps": 0.08533939615313083,
+        "observedPT": 0.6256880733944954,
+        "estimatedPT": 0.612018858195761
+      },
+      "validation": {
+        "n": 398,
+        "coverage": 0.37185929648241206,
+        "rps": 0.07762528516613124,
+        "macroRps": 0.07676374892215457,
+        "observedPT": 0.6306532663316583,
+        "estimatedPT": 0.6369964107376063
+      },
+      "october": {
+        "n": 1356,
+        "coverage": 0.3997050147492625,
+        "rps": 0.08669871866401244,
+        "macroRps": 0.08580767028026715,
+        "observedPT": 0.56047197640118,
+        "estimatedPT": 0.5805697640986976
+      }
+    },
+    {
+      "variant": "personal-p4",
+      "selection": {
+        "n": 545,
+        "coverage": 0.1798165137614679,
+        "rps": 0.09562641317989198,
+        "macroRps": 0.09081310056608746,
+        "observedPT": 0.6256880733944954,
+        "estimatedPT": 0.6115345837663577
+      },
+      "validation": {
+        "n": 398,
+        "coverage": 0.37185929648241206,
+        "rps": 0.08584943278013743,
+        "macroRps": 0.0849880511240879,
+        "observedPT": 0.6306532663316583,
+        "estimatedPT": 0.6459959947547776
+      }
+    }
+  ],
+  "selected": "personal-p1",
+  "calibrator": {
+    "slope": 1.15,
+    "intercept": 0,
+    "n": 545,
+    "coverage": 0.1798165137614679,
+    "rps": 0.09003165917955275,
+    "macroRps": 0.08510053051597007,
+    "observedPT": 0.6256880733944954,
+    "estimatedPT": 0.6178210083515783
+  },
+  "calibrated": {
+    "selection": {
+      "n": 545,
+      "coverage": 0.1798165137614679,
+      "rps": 0.09003165917955275,
+      "macroRps": 0.08510053051597007,
+      "observedPT": 0.6256880733944954,
+      "estimatedPT": 0.6178210083515783
+    },
+    "validation": {
+      "n": 398,
+      "coverage": 0.37185929648241206,
+      "rps": 0.07735928144805004,
+      "macroRps": 0.07633798114457663,
+      "observedPT": 0.6306532663316583,
+      "estimatedPT": 0.6434072798085841
+    },
+    "october": {
+      "n": 1356,
+      "coverage": 0.3997050147492625,
+      "rps": 0.08637359749977441,
+      "macroRps": 0.08544957286109729,
+      "observedPT": 0.56047197640118,
+      "estimatedPT": 0.5849406378662481
+    }
+  },
+  "octoberExternal": {
+    "snapshot": {
+      "n": 499,
+      "coverage": 0.37074148296593185,
+      "rps": 0.10038677974189714,
+      "macroRps": 0.0994048476878749,
+      "observedPT": 0.5150300601202404,
+      "estimatedPT": 0.5694401720881136
+    },
+    "personal-p1": {
+      "n": 499,
+      "coverage": 0.37074148296593185,
+      "rps": 0.09701758467843516,
+      "macroRps": 0.09634777119862364,
+      "observedPT": 0.5150300601202404,
+      "estimatedPT": 0.5670356453271205
+    }
+  }
+}

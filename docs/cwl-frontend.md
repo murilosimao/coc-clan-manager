@@ -19,6 +19,8 @@ O plano vigente vem de `effective`. Para um ataque já avaliado, a missão exibi
 
 A cobertura informa dias registrados/encerrados, sem prometer uma edição completa. Duração ausente não vira zero. ATQ/DEF e mérito permanecem separados.
 
+As explicações dos scores incluem contagem, peso e tamanho efetivo da amostra; “referência” indica ausência de histórico individual e não desempenho médio observado. Diferenças de CV acima de três níveis recebem aviso de faixa não validada e pedem revisão da líder.
+
 ## Exportação e acesso
 
 **Copiar TSV** no computador e **Copiar plano/ranking** no celular exportam a visão e o filtro atuais, em colunas para Excel. Se a cópia não estiver disponível, o arquivo TSV pode ser baixado como alternativa automática. Campos textuais são tratados para não virarem fórmulas de planilha.

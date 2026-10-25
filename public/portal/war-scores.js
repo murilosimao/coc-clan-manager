@@ -1,9 +1,9 @@
 /* Reproducible, regularized ordinal ratings. Current-war outcomes never train the model. */
 (function (root) {
   'use strict';
-  const VERSION = 'war-ordinal-v1';
+  const VERSION = 'war-ordinal-v2';
   const CONFIG = Object.freeze({ normalHistoryDays: 14, cwlSeasonLimit: 2, halfLifeDays: 30, otherModeWeight: 0.75, cleanupWeight: 0.65,
-    playerPenalty: 2, featurePenalty: 2, iterations: 220, learningRate: 0.035, scoreScale: 15, minimumScale: 0.35 });
+    playerPenalty: 1, featurePenalty: 2, iterations: 220, learningRate: 0.035, scoreScale: 15, minimumScale: 0.35, participantHistory: true });
   const tag = (v) => String(v || '').replace(/^#/, '').toUpperCase();
   const number = (v) => v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -35,6 +35,20 @@
     const preparation = timestamp(raw.preparationStartTime);
     return Number.isFinite(preparation) ? new Date(preparation).toISOString().slice(0, 7) : null;
   }
+  function historyQuality(raw) {
+    const sides = [raw.clan, raw.opponent], rosters = sides.map(s => (s?.members || []).map(identity));
+    const ids = new Map(rosters.flat().map(p => [p.tag, p]));
+    const all = sides.flatMap((s, side) => (s?.members || []).flatMap(p => (p.attacks || []).map(a => ({ ...a, side, attackerTag: a.attackerTag || p.tag }))));
+    const orders = all.map(a => number(a.order));
+    return Number.isInteger(raw.teamSize) && rosters.every(r => r.length === raw.teamSize) && ids.size === rosters.flat().length
+      && rosters.flat().every(p => p.tag && Number.isInteger(p.th) && p.th >= 1 && p.th <= 25 && p.position != null)
+      && sides.every((s,i) => number(s?.attacks) === all.filter(a => a.side === i).length)
+      && orders.every(o => Number.isInteger(o) && o >= 1) && new Set(orders).size === all.length
+      && (!orders.length || Math.min(...orders) === 1 && Math.max(...orders) === orders.length)
+      && all.every(a => Number.isInteger(number(a.stars)) && a.stars >= 0 && a.stars <= 3
+        && number(a.destructionPercentage) != null && a.destructionPercentage >= 0 && a.destructionPercentage <= 100
+        && rosters[a.side].some(p => p.tag === tag(a.attackerTag)) && rosters[1-a.side].some(p => p.tag === tag(a.defenderTag))) ? 1 : 0;
+  }
   function collect(war, history) {
     const ctx = context(war);
     ctx.normalSince = ctx.cutoff - CONFIG.normalHistoryDays * 86400000;
@@ -47,8 +61,16 @@
       }).map(cwlSeason).filter(Boolean);
       return [clanTag, [...new Set(seasons)].sort().reverse().slice(0, CONFIG.cwlSeasonLimit)];
     }));
+    const participants = new Set([...(war.roster || []), ...(war.opponentRoster || [])].map(p => tag(p.tag)));
+    const playerSeasons = new Map([...participants].map(t => [t, new Set()]));
+    if (CONFIG.participantHistory) for (const raw of history) {
+      const start = timestamp(raw.startTime), end = timestamp(raw.endTime), season = cwlSeason(raw);
+      if (warType(raw) !== 'cwl' || raw.state !== 'warEnded' || !season || end > ctx.cutoff || start >= ctx.cutoff || end < start || !Number.isFinite(end) || !Number.isFinite(start)) continue;
+      for (const p of [raw.clan, raw.opponent].flatMap(s => s?.members || [])) playerSeasons.get(tag(p.tag))?.add(season);
+    }
+    ctx.playerCwlSeasons = Object.fromEntries([...playerSeasons].map(([t, seasons]) => [t, [...seasons].sort().reverse().slice(0, CONFIG.cwlSeasonLimit)]));
     const excluded = { duplicateWars: 0, currentOrFuture: 0, incomplete: 0, modifier: 0, unknownModifier: 0,
-      alreadyTripled: 0, invalidAttacks: 0, unsupportedType: 0, outsideNormalWindow: 0, outsideCwlSeasons: 0, unknownCwlSeason: 0 };
+      alreadyTripled: 0, invalidAttacks: 0, unsupportedType: 0, outsideNormalWindow: 0, outsideCwlSeasons: 0, outsidePlayerCwlSeasons: 0, unknownCwlSeason: 0 };
     const events = [], rejected = [], seen = new Set();
     const reject = (reason, raw, attack = null) => {
       excluded[reason]++;
@@ -57,7 +79,8 @@
     };
     let wars = 0;
     const attackCount = (w) => [w.clan, w.opponent].reduce((n, side) => n + (side?.members || []).reduce((s, p) => s + (p.attacks?.length || 0), 0), 0);
-    const sorted = [...history].sort((a, b) => rawWarKey(a).localeCompare(rawWarKey(b)) || attackCount(b) - attackCount(a));
+    const qualities = new Map(history.map(w => [w, historyQuality(w)]));
+    const sorted = [...history].sort((a, b) => rawWarKey(a).localeCompare(rawWarKey(b)) || qualities.get(b) - qualities.get(a) || attackCount(b) - attackCount(a));
     for (const raw of sorted) {
       const key = rawWarKey(raw);
       if (seen.has(key)) { reject('duplicateWars', raw); continue; }
@@ -68,7 +91,8 @@
       if (!['random', 'cwl'].includes(type)) { reject('unsupportedType', raw); continue; }
       if (type === 'random' && end < ctx.normalSince) { reject('outsideNormalWindow', raw); continue; }
       if (type === 'cwl' && !season) { reject('unknownCwlSeason', raw); continue; }
-      if (type === 'cwl' && ![tag(raw.clan?.tag), tag(raw.opponent?.tag)].some((t) => ctx.cwlSeasons[t]?.includes(season))) { reject('outsideCwlSeasons', raw); continue; }
+      const participantSeason = CONFIG.participantHistory && [raw.clan, raw.opponent].some(s => (s?.members || []).some(p => ctx.playerCwlSeasons[tag(p.tag)]?.includes(season)));
+      if (type === 'cwl' && ![tag(raw.clan?.tag), tag(raw.opponent?.tag)].some((t) => ctx.cwlSeasons[t]?.includes(season)) && !participantSeason) { reject('outsideCwlSeasons', raw); continue; }
       if (!modifier(raw.battleModifier)) { reject('unknownModifier', raw); continue; }
       if (modifier(raw.battleModifier) !== ctx.modifier) { reject('modifier', raw); continue; }
       const sides = [raw.clan, raw.opponent];
@@ -97,6 +121,7 @@
         const stars = number(a.stars), destruction = number(a.destructionPercentage);
         const prior = best.get(def.tag);
         best.set(def.tag, Math.max(prior ?? 0, stars));
+        if (type === 'cwl' && CONFIG.participantHistory && [atk, def].some(p => participants.has(p.tag) && !ctx.playerCwlSeasons[p.tag]?.includes(season))) { reject('outsidePlayerCwlSeasons', raw, a); continue; }
         if (prior === 3) { reject('alreadyTripled', raw, a); continue; }
         const cleanup = prior != null;
         const ageDays = (ctx.cutoff - end) / 86400000;
@@ -181,6 +206,8 @@
     const scales = { attack: scaleFor('attack'), defense: scaleFor('defense') };
     const ratings = keys.map((k, j) => { const r = players.get(k), attackEffect = p[F + j], defenseEffect = p[F + N + j];
       return { ...r, attackEffect, defenseEffect,
+        attackEffectiveN: r.attackWeight2 ? r.attackWeight ** 2 / r.attackWeight2 : 0,
+        defenseEffectiveN: r.defenseWeight2 ? r.defenseWeight ** 2 / r.defenseWeight2 : 0,
         attackScore: clamp(50 + CONFIG.scoreScale * attackEffect / scales.attack, 0, 100),
         defenseScore: clamp(50 + CONFIG.scoreScale * defenseEffect / scales.defense, 0, 100) };
     });
@@ -212,18 +239,25 @@
       position: position(d, defRoster), cleanup: previous.length > 0, type: model.context.type };
     const eta = etaFor(model, event), margin = eta - model.thresholds[2];
     const atk = rating(model, a), def = rating(model, d);
-    const enough = model.events.length >= 50 && atk?.attackCount >= 5 && def?.defenseCount >= 5 && atk.attackWeight >= 2 && def.defenseWeight >= 2;
+    const outsideModelRange = Math.abs(a.th - d.th) > 3;
+    const enough = !outsideModelRange && model.events.length >= 50 && atk?.attackCount >= 5 && def?.defenseCount >= 5 && atk.attackWeight >= 2 && def.defenseWeight >= 2;
     const category = !enough ? 'unknown' : margin >= 1 ? 'favorable' : margin <= -1 ? 'hard' : 'balanced';
-    const label = { unknown: 'Base insuficiente', favorable: 'Favorável', hard: 'Desafiador', balanced: 'Equilibrado' }[category];
+    const label = outsideModelRange ? 'Fora da faixa validada' : { unknown: 'Base insuficiente', favorable: 'Favorável', hard: 'Desafiador', balanced: 'Equilibrado' }[category];
     const result = alreadyTripled ? 'Base já triplicada' : !enough ? 'Resultado sem avaliação' : attack.stars === 3
       ? category === 'hard' ? 'PT em alvo desafiador' : 'PT realizado'
       : category === 'favorable' ? 'Abaixo da referência' : category === 'hard' ? 'Sem PT em alvo desafiador' : 'Sem PT em confronto equilibrado';
     return { attacker: atk, defender: def, eta, margin, category, label, result,
-      phase: event.cleanup ? 'Limpeza' : 'Fresh', alreadyTripled, delta: event.delta, position: event.position, features: features(event, model.featureNames) };
+      phase: event.cleanup ? 'Limpeza' : 'Fresh', alreadyTripled, outsideModelRange, delta: event.delta, position: event.position, features: features(event, model.featureNames) };
+  }
+  function evidence(player, role) {
+    const count = player?.[role + 'Count'] || 0, weight = player?.[role + 'Weight'] || 0;
+    const squared = player?.[role + 'Weight2'] || 0;
+    const effectiveN = player?.[role + 'EffectiveN'] ?? (squared ? weight ** 2 / squared : 0);
+    const level = !count ? 'reference' : count < 5 || weight < 2 ? 'limited' : effectiveN < 15 || weight < 6 ? 'moderate' : 'strong';
+    return { count, weight, effectiveN, level, label: { reference: 'Referência', limited: 'Baixa amostra', moderate: 'Amostra média', strong: 'Boa amostra' }[level] };
   }
   function confidence(player, role) {
-    const n = player?.[role + 'Count'] || 0, w = player?.[role + 'Weight'] || 0;
-    return !n ? 'Referência' : n < 5 || w < 2 ? 'Baixa amostra' : n < 15 || w < 6 ? 'Amostra média' : 'Boa amostra';
+    return evidence(player, role).label;
   }
-  root.WarScores = { VERSION, CONFIG, context, warKey, collect, fit, rating, assess, confidence, playerKey, etaFor, likelihood, features };
+  root.WarScores = { VERSION, CONFIG, context, warKey, collect, fit, rating, assess, evidence, confidence, playerKey, etaFor, likelihood, features, historyQuality };
 })(typeof window !== 'undefined' ? window : globalThis);

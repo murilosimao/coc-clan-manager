@@ -1,0 +1,15 @@
+{
+  "tags": [
+    "2GCU80QQU",
+    "2J8Y2JQJ0",
+    "2JGRJJQ9G"
+  ],
+  "edition": "2026-10",
+  "selected": "personal-p1",
+  "calibrator": {
+    "slope": 1.15,
+    "intercept": 0
+  },
+  "selection": "September first four rounds; validation September remaining rounds",
+  "createdAt": "2026-10-25T14:44:51.504Z"
+}

@@ -59,7 +59,8 @@ const cwl = (month, clan = '#CLANCURRENT') => {
 const seasons = S.collect(current, [cwl('05'), cwl('04'), cwl('03'), cwl('05', '#OTHER'), cwl('03', '#OTHER'), cwl('02', '#OTHER')]);
 assert.equal(JSON.stringify(seasons.context.cwlSeasons), JSON.stringify({ CLANCURRENT: ['2024-05', '2024-04'], OTHER: ['2024-05', '2024-03'] }));
 assert.equal(seasons.excluded.outsideCwlSeasons, 2);
-assert.equal(seasons.events.length, 8, 'two monthly CWL editions per clan survive beyond 14 days for both roles');
+assert.equal(seasons.events.length, 6, 'a transfer must not add a third CWL edition to the same participant');
+assert.equal(seasons.excluded.outsidePlayerCwlSeasons, 3);
 const olderRound = cwl('05'); olderRound.startTime = '20240504T000000.000Z'; olderRound.endTime = '20240505T000000.000Z';
 assert.equal(S.collect(current, [cwl('05'), olderRound, cwl('04')]).wars, 3, 'two editions must not mean two rounds');
 const incompatibleSeason = cwl('05'); incompatibleSeason.battleModifier = 'other';

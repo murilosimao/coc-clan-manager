@@ -1,0 +1,16 @@
+{
+  "candidate": "war-ordinal-v2",
+  "planner": "cwl-assignment-v2",
+  "baselineCommit": "108430d",
+  "baselineTag": "snapshot/cwl-baseline-2026-10-25",
+  "baselineManifestSha256": "e2d17be6724616bbd15dddf63e5a49c7178f0ff6fcd994f9c4c1a6d47b87b91e",
+  "sourceSha256": "3ad0bae046cfe1f38004dd6bc4e06d0579ac3452f28e0e23557e095d36837057",
+  "baselineFiles": 283,
+  "artifacts": {
+    "README.md": "b0b48a4dd0159ab8c96aa298152e06e7629961243fb89f7bfb3955822e60145f",
+    "production-comparison.json": "9b153273f5f343ef040c12fc1ad0396ceac4bb0dde6b3cb10beae65e5e046ca5",
+    "offline-comparison.json": "d12dbdcea68ea99124f7ee2d99e927fad9e2a6730314a743b23dfa3e2dba3b89",
+    "holdout-summary.json": "29998e0223241638d4dc14a1101f2539b3b394721a8a67d4c164e3b3c23ce3ab",
+    "holdout-protocol.json": "14490e531dc5d713faaff63e18258d06e707fd9cd356537c3741bb9aee8116b9"
+  }
+}
