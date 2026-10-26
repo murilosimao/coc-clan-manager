@@ -1,0 +1,311 @@
+{
+  "createdAt": "2026-10-25T15:02:44.760Z",
+  "baseline": "108430d",
+  "candidateVersion": "war-ordinal-v2",
+  "config": {
+    "normalHistoryDays": 14,
+    "cwlSeasonLimit": 2,
+    "halfLifeDays": 30,
+    "otherModeWeight": 0.75,
+    "cleanupWeight": 0.65,
+    "playerPenalty": 1,
+    "featurePenalty": 2,
+    "iterations": 220,
+    "learningRate": 0.035,
+    "scoreScale": 15,
+    "minimumScale": 0.35,
+    "participantHistory": true
+  },
+  "rounds": 28,
+  "all": {
+    "baseline": {
+      "n": 304,
+      "rps": 0.0776690296362049,
+      "observedPT": 0.694078947368421,
+      "estimatedPT": 0.649252233770996,
+      "brier3": 0.1141758683989151,
+      "coverage": 0.4407894736842105
+    },
+    "candidate": {
+      "n": 304,
+      "rps": 0.07455368441421246,
+      "observedPT": 0.694078947368421,
+      "estimatedPT": 0.6491320700585361,
+      "brier3": 0.10922729578573132,
+      "coverage": 0.5164473684210527
+    },
+    "intervalWar": {
+      "clusters": 28,
+      "ci95": [
+        -0.005346544353279229,
+        -0.001087853960284232
+      ]
+    },
+    "intervalClan": {
+      "clusters": 4,
+      "ci95": [
+        -0.005211582268271387,
+        -0.0014773705674415224
+      ]
+    }
+  },
+  "newGroups": {
+    "baseline": {
+      "n": 201,
+      "rps": 0.0972344210775906,
+      "observedPT": 0.5771144278606966,
+      "estimatedPT": 0.589366813819258,
+      "brier3": 0.12595412310334353,
+      "coverage": 0.31343283582089554
+    },
+    "candidate": {
+      "n": 201,
+      "rps": 0.09304426936273429,
+      "observedPT": 0.5771144278606966,
+      "estimatedPT": 0.5792961163516882,
+      "brier3": 0.12000547316848452,
+      "coverage": 0.34328358208955223
+    },
+    "intervalWar": {
+      "clusters": 21,
+      "ci95": [
+        -0.006952712469202146,
+        -0.0015793550671359517
+      ]
+    },
+    "intervalClan": {
+      "clusters": 3,
+      "ci95": [
+        -0.006035285054375216,
+        -0.003003974297987333
+      ]
+    }
+  },
+  "puroSangue": {
+    "baseline": {
+      "n": 103,
+      "rps": 0.03948802303699575,
+      "observedPT": 0.9223300970873787,
+      "estimatedPT": 0.7661160144535138,
+      "brier3": 0.09119111892716637,
+      "coverage": 0.6893203883495146
+    },
+    "candidate": {
+      "n": 103,
+      "rps": 0.03847011572826218,
+      "observedPT": 0.9223300970873787,
+      "estimatedPT": 0.7854138826320947,
+      "brier3": 0.08819415351453315,
+      "coverage": 0.8543689320388349
+    },
+    "intervalWar": {
+      "clusters": 7,
+      "ci95": [
+        -0.0034032545538853366,
+        0.0016851945984813004
+      ]
+    },
+    "intervalClan": {
+      "clusters": 1,
+      "ci95": [
+        -0.0010179073087335597,
+        -0.0010179073087335597
+      ]
+    }
+  },
+  "byClan": [
+    {
+      "tag": "2G8QCR92V",
+      "baseline": {
+        "n": 103,
+        "rps": 0.03948802303699575,
+        "observedPT": 0.9223300970873787,
+        "estimatedPT": 0.7661160144535138,
+        "brier3": 0.09119111892716637,
+        "coverage": 0.6893203883495146
+      },
+      "candidate": {
+        "n": 103,
+        "rps": 0.03847011572826218,
+        "observedPT": 0.9223300970873787,
+        "estimatedPT": 0.7854138826320947,
+        "brier3": 0.08819415351453315,
+        "coverage": 0.8543689320388349
+      },
+      "intervalWar": {
+        "clusters": 7,
+        "ci95": [
+          -0.0034032545538853366,
+          0.0016851945984813004
+        ]
+      },
+      "intervalClan": {
+        "clusters": 1,
+        "ci95": [
+          -0.0010179073087335597,
+          -0.0010179073087335597
+        ]
+      }
+    },
+    {
+      "tag": "2GCU80QQU",
+      "baseline": {
+        "n": 93,
+        "rps": 0.13791355645105857,
+        "observedPT": 0.3225806451612903,
+        "estimatedPT": 0.3718113854887092,
+        "brier3": 0.1401517923208776,
+        "coverage": 0.3978494623655914
+      },
+      "candidate": {
+        "n": 93,
+        "rps": 0.1349095821530713,
+        "observedPT": 0.3225806451612903,
+        "estimatedPT": 0.34952597598144214,
+        "brier3": 0.13714707817572094,
+        "coverage": 0.44086021505376344
+      },
+      "intervalWar": {
+        "clusters": 7,
+        "ci95": [
+          -0.006188059209803366,
+          0.000603820011926026
+        ]
+      },
+      "intervalClan": {
+        "clusters": 1,
+        "ci95": [
+          -0.003003974297987333,
+          -0.003003974297987333
+        ]
+      }
+    },
+    {
+      "tag": "2J8Y2JQJ0",
+      "baseline": {
+        "n": 36,
+        "rps": 0.04739901288924706,
+        "observedPT": 0.8333333333333334,
+        "estimatedPT": 0.8332140025384065,
+        "brier3": 0.11164674744366043,
+        "coverage": 0.19444444444444445
+      },
+      "candidate": {
+        "n": 36,
+        "rps": 0.04383483619318334,
+        "observedPT": 0.8333333333333334,
+        "estimatedPT": 0.8326460891823974,
+        "brier3": 0.10320820356473087,
+        "coverage": 0.2222222222222222
+      },
+      "intervalWar": {
+        "clusters": 7,
+        "ci95": [
+          -0.00850920100892283,
+          0.00018128058182366612
+        ]
+      },
+      "intervalClan": {
+        "clusters": 1,
+        "ci95": [
+          -0.003564176696063732,
+          -0.003564176696063732
+        ]
+      }
+    },
+    {
+      "tag": "2JGRJJQ9G",
+      "baseline": {
+        "n": 72,
+        "rps": 0.06960824198103299,
+        "observedPT": 0.7777777777777778,
+        "estimatedPT": 0.7484523143866428,
+        "brier3": 0.11476915486053686,
+        "coverage": 0.2638888888888889
+      },
+      "candidate": {
+        "n": 72,
+        "rps": 0.06357295692665778,
+        "observedPT": 0.7777777777777778,
+        "estimatedPT": 0.749407561247901,
+        "brier3": 0.10626286816934766,
+        "coverage": 0.2777777777777778
+      },
+      "intervalWar": {
+        "clusters": 7,
+        "ci95": [
+          -0.012556012594788944,
+          -0.0012926664541238295
+        ]
+      },
+      "intervalClan": {
+        "clusters": 1,
+        "ci95": [
+          -0.006035285054375216,
+          -0.006035285054375216
+        ]
+      }
+    }
+  ],
+  "categories": [
+    {
+      "category": "favorable",
+      "n": 89,
+      "triples": 84,
+      "rate": 0.9438202247191011
+    },
+    {
+      "category": "unknown",
+      "n": 147,
+      "triples": 90,
+      "rate": 0.6122448979591837
+    },
+    {
+      "category": "balanced",
+      "n": 55,
+      "triples": 36,
+      "rate": 0.6545454545454545
+    },
+    {
+      "category": "hard",
+      "n": 13,
+      "triples": 1,
+      "rate": 0.07692307692307693
+    }
+  ],
+  "queryWarnings": [
+    "player_history_war_limit",
+    "player_history_may_be_truncated:8QVLRJRL",
+    "player_history_may_be_truncated:8GRRV0RR9",
+    "player_history_may_be_truncated:P0JQGLJ29",
+    "player_history_may_be_truncated:9PUGQLQ08",
+    "player_history_may_be_truncated:GGQC0YYR8",
+    "player_history_may_be_truncated:8QVLRJRL",
+    "player_history_may_be_truncated:8GRRV0RR9",
+    "player_history_may_be_truncated:2UQP8LL2P",
+    "player_history_may_be_truncated:G9LJJG2PP",
+    "player_history_may_be_truncated:8CQJQQ882",
+    "player_history_may_be_truncated:YPUR2JP89",
+    "player_history_may_be_truncated:8QVLRJRL",
+    "player_history_may_be_truncated:8GRRV0RR9",
+    "player_history_may_be_truncated:2YPVPQ2Q8",
+    "player_history_may_be_truncated:GPQJ29J8",
+    "player_history_may_be_truncated:9L2JLQ90",
+    "player_history_may_be_truncated:G202LCVCU",
+    "player_history_may_be_truncated:PUCL8CP0C",
+    "player_history_war_limit",
+    "player_history_may_be_truncated:8GRRV0RR9",
+    "player_history_may_be_truncated:8GRRV0RR9",
+    "player_history_may_be_truncated:8GRRV0RR9",
+    "player_history_may_be_truncated:8GRRV0RR9",
+    "player_history_may_be_truncated:GGL08GPUU",
+    "player_history_may_be_truncated:QJJJ9LC8V",
+    "player_history_may_be_truncated:QVV922YP8",
+    "player_history_may_be_truncated:GGL08GPUU",
+    "player_history_may_be_truncated:QJJJ9LC8V",
+    "player_history_may_be_truncated:QVV922YP8",
+    "player_history_may_be_truncated:G9YC0U0P2",
+    "player_history_may_be_truncated:GG2G88YUU"
+  ],
+  "sourceHash": "3ad0bae046cfe1f38004dd6bc4e06d0579ac3452f28e0e23557e095d36837057"
+}

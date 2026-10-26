@@ -1,0 +1,226 @@
+{
+  "checkedAt": "2026-10-26T03:24:48.768Z",
+  "since": "2026-10-26T03:15:10.170Z",
+  "functionVersion": 2,
+  "checks": [
+    {
+      "name": "privacy",
+      "status": 200,
+      "result": [
+        {
+          "invocations": 23,
+          "plaintextJwtCookieRows": 0,
+          "recordedPrivateSessionHeaderRows": 0,
+          "workerCookieHeaderRows": 0
+        }
+      ]
+    },
+    {
+      "name": "resources",
+      "status": 200,
+      "result": [
+        {
+          "cpuMs": "78",
+          "eventType": "Shutdown",
+          "memoryBytes": "11880558",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:23:10.233000"
+        },
+        {
+          "cpuMs": "63",
+          "eventType": "Shutdown",
+          "memoryBytes": "11802286",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:23:09.492000"
+        },
+        {
+          "cpuMs": "35",
+          "eventType": "Shutdown",
+          "memoryBytes": "11735406",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:23:07.693000"
+        },
+        {
+          "cpuMs": "78",
+          "eventType": "Shutdown",
+          "memoryBytes": "11880670",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:44.924000"
+        },
+        {
+          "cpuMs": "541",
+          "eventType": "Shutdown",
+          "memoryBytes": "19428134",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:42.101000"
+        },
+        {
+          "cpuMs": "132",
+          "eventType": "Shutdown",
+          "memoryBytes": "12050182",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:38.793000"
+        },
+        {
+          "cpuMs": "33",
+          "eventType": "Shutdown",
+          "memoryBytes": "11457766",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:38.560000"
+        },
+        {
+          "cpuMs": "35",
+          "eventType": "Shutdown",
+          "memoryBytes": "11683590",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:38.087000"
+        },
+        {
+          "cpuMs": "64",
+          "eventType": "Shutdown",
+          "memoryBytes": "11864254",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:32.404000"
+        },
+        {
+          "cpuMs": "32",
+          "eventType": "Shutdown",
+          "memoryBytes": "11042166",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:31.324000"
+        },
+        {
+          "cpuMs": "44",
+          "eventType": "Shutdown",
+          "memoryBytes": "11071126",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:30.957000"
+        },
+        {
+          "cpuMs": "32",
+          "eventType": "Shutdown",
+          "memoryBytes": "11129822",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:30.063000"
+        },
+        {
+          "cpuMs": "56",
+          "eventType": "Shutdown",
+          "memoryBytes": "11742150",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:21.705000"
+        },
+        {
+          "cpuMs": "36",
+          "eventType": "Shutdown",
+          "memoryBytes": "11736750",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:20.922000"
+        },
+        {
+          "cpuMs": "73",
+          "eventType": "Shutdown",
+          "memoryBytes": "11864446",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:18.386000"
+        },
+        {
+          "cpuMs": "34",
+          "eventType": "Shutdown",
+          "memoryBytes": "11042166",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:17.091000"
+        },
+        {
+          "cpuMs": "112",
+          "eventType": "Shutdown",
+          "memoryBytes": "12277710",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:16.772000"
+        },
+        {
+          "cpuMs": "21",
+          "eventType": "Shutdown",
+          "memoryBytes": "11069942",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:22:03.012000"
+        },
+        {
+          "cpuMs": "79",
+          "eventType": "Shutdown",
+          "memoryBytes": "11864374",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:21:54.051000"
+        },
+        {
+          "cpuMs": "25",
+          "eventType": "Shutdown",
+          "memoryBytes": "10966230",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T03:18:22.486000"
+        }
+      ]
+    },
+    {
+      "name": "requests",
+      "status": 200,
+      "result": [
+        {
+          "averageMs": 386,
+          "maxMs": 386,
+          "n": 1,
+          "route": "health",
+          "status": "200"
+        },
+        {
+          "averageMs": 2865,
+          "maxMs": 2865,
+          "n": 1,
+          "route": "initialize",
+          "status": "201"
+        },
+        {
+          "averageMs": 843,
+          "maxMs": 843,
+          "n": 1,
+          "route": "login",
+          "status": "200"
+        },
+        {
+          "averageMs": 700,
+          "maxMs": 2321,
+          "n": 16,
+          "route": "other",
+          "status": "200"
+        },
+        {
+          "averageMs": 478.25,
+          "maxMs": 507,
+          "n": 4,
+          "route": "other",
+          "status": "404"
+        }
+      ]
+    }
+  ]
+}

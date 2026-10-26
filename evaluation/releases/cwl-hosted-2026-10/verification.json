@@ -1,0 +1,51 @@
+{
+  "checkedAt": "2026-10-26T03:32:13.439755+00:00",
+  "workerVersion": "207efb2d-fa58-4a0a-b373-74d825629b5b",
+  "supabaseFunctionVersion": 2,
+  "published": [
+    "Supabase private function",
+    "Cloudflare Worker and its static frontend"
+  ],
+  "notPublished": [
+    "GitHub Pages",
+    "Git branch/PR"
+  ],
+  "realLogins": {
+    "leader": "user_confirmed",
+    "coLeader": "user_confirmed",
+    "retestAfterEncryptedSessionChange": "user_confirmed"
+  },
+  "historicalPersistence": {
+    "days": [
+      "2026-10-03",
+      "2026-10-04"
+    ],
+    "missionsPerDay": 15,
+    "reloadReusesSavedPlan": true,
+    "oneArchiveAndRevisionPerDay": true
+  },
+  "checks": {
+    "backendTests": 71,
+    "backendFailures": 0,
+    "browserUi": {
+      "passed": 21,
+      "failed": 0
+    },
+    "workerDryRun": true,
+    "supabaseBundleAndDenoCheck": true,
+    "npmAuditVulnerabilities": 0,
+    "browserModuleWorkerCases": 2,
+    "frozenBaseline": {
+      "files": 283,
+      "changedOrMissing": 0
+    }
+  },
+  "limitations": [
+    "Historical rounds do not test approval of a live CWL mission; covered by local integration tests",
+    "Shutdown memory is a snapshot, not an observed peak",
+    "Hosted cases used 15-player rosters, not all possible maximum input sizes",
+    "No separate Cloudflare per-request CPU measurement",
+    "Cookie log records from before the correction were not deleted; their old plaintext format no longer authenticates to this application",
+    "Data API global enable flag was not independently verified; cwl is not an exposed schema and public database roles have no access"
+  ]
+}

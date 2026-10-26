@@ -1,0 +1,30 @@
+{
+  "createdAt": "2026-10-26T03:34:43.708269+00:00",
+  "formulaReferenceCommit": "b3f1f14",
+  "workerVersion": "207efb2d-fa58-4a0a-b373-74d825629b5b",
+  "files": {
+    "evaluation/releases/cwl-hosted-2026-10/README.md": "b70fe9133015a051388e712633ea17d84ea744cde46796aafac42cb42d9eaff6",
+    "evaluation/releases/cwl-hosted-2026-10/database-security.json": "cdb0012fe7dc1a186e4eb399a8c36873578318d6db46a788136d438322bb93a6",
+    "evaluation/releases/cwl-hosted-2026-10/function-deployment.json": "afe653e8edaf3291e10037d20b8b5337f06eb69b480c868d426478e2d3706a91",
+    "evaluation/releases/cwl-hosted-2026-10/metrics-after-fix.json": "af3c1cef481cafea3d4056554b47296e2e33a462bdeb944dd9a5863fc0718568",
+    "evaluation/releases/cwl-hosted-2026-10/metrics-initial.json": "32eadcd388580c5ab8b5a60e76cd783723796dfd3a31b95879390f1696602bb1",
+    "evaluation/releases/cwl-hosted-2026-10/persistence.json": "aea5e34dbf0dd7411fa53b531f20d99014381308d5a23c820302ec58e1a9dc14",
+    "evaluation/releases/cwl-hosted-2026-10/post-fix-smoke.json": "1b13f715305ab5b602e0d2bd5808a55ee4e821f33497bbfcb0b1b57688fbc27d",
+    "evaluation/releases/cwl-hosted-2026-10/project-security.json": "c3ac78426c8dbc9b819b687e925c0805c5963f7db858f05515cee71816007935",
+    "evaluation/releases/cwl-hosted-2026-10/public-smoke.json": "afdb7e39256fa9ffbe63fa144c7e99c0f6d23d7b47f956b5e218e3020b4ad1c7",
+    "evaluation/releases/cwl-hosted-2026-10/region-comparison.json": "4bfe680992bfd45c0d9e0ce231539df4ad4ffc7e8af51674abfd79377628de9e",
+    "evaluation/releases/cwl-hosted-2026-10/verification.json": "1c27a9d90bd9400bb3c6e33a9f2b0d4babad570088c60ed5fb6acae8b3b1bee7"
+  },
+  "implementation": {
+    "src/cwl/session-crypto.js": "d5cc80ae1a310cc09873c6a7a77539734aeff3d44c0cef603b27620700ff9471",
+    "src/cwl/auth.js": "3816fa1a96690c30e379752760b1f2cf887ba1260ae0118e00fd3e0c1e56d68a",
+    "src/cwl/bridge.js": "ddd3fedbb5606de2d9e0c00a03ff8a09c7587b1dca7f6d4ec798995aaf1b313a",
+    "src/cwl/edge.js": "c5f5a109284bb6226ee695d9f6f4cfb53f9189a22b81ea0f2267e1c102c06195",
+    "src/cwl/service.js": "c9d91380e15160feb36595486da141bf91ca57065aa9ff0a50073a8af17a1193",
+    "public/portal/war-scores.js": "3ad0bae046cfe1f38004dd6bc4e06d0579ac3452f28e0e23557e095d36837057",
+    "public/portal/cwl-planner.js": "48ef4c97438b5e20c0e386811ca36ce439fe177521c2bce71354def59def6bba",
+    "wrangler.jsonc": "1ed7c5c41a5d25dbb9eda6c74e723e2b090e48e2f134b6052d03512d6ec18c44",
+    "supabase/functions/cwl/index.ts": "43445166961abee45f481aadb234ad8efe17d0fbf91f083264867414d1f1c156",
+    "tests/cwl-auth.test.mjs": "9d4e16991e12a4a4cdf92604b6bf4d5f310798e3344bfe6cb8cd11ebee52c58a"
+  }
+}

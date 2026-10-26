@@ -11,10 +11,16 @@
   <link rel="apple-touch-icon" sizes="180x180" href="portal/images/apple-touch-icon.png">
   <link rel="stylesheet" href="portal/fonts.css">
   <link rel="stylesheet" href="portal/app.css">
+  <link rel="stylesheet" href="portal/cwl.css">
   <script src="portal/clashking.js" defer></script>
   <script src="portal/clan-api.js" defer></script>
   <script src="portal/war-engine.js" defer></script>
   <script src="portal/war-stats.js" defer></script>
+  <script src="portal/war-scores.js" defer></script>
+  <script src="portal/score-ui.js" defer></script>
+  <script src="portal/cwl-ui.js" defer></script>
+  <script src="portal/cwl-app.js" defer></script>
+  <script src="portal/cwl-compute.js" defer></script>
   <script src="portal/app.js" defer></script>
 </head>
 <body>
@@ -46,6 +52,7 @@
     <button type="button" data-view="team" aria-current="page">Time de guerra</button>
     <button type="button" data-view="rules">Critérios</button>
     <button type="button" data-view="war">Guerras</button>
+    <button type="button" data-view="cwl">Liga CWL</button>
   </nav>
   <button type="button" class="clan-menu" id="open-clan" aria-label="Clã e opções" aria-haspopup="dialog"><svg class="icon"><use href="#i-shield"/></svg><span>Meu clã</span><svg class="icon small"><use href="#i-chevron"/></svg></button>
 </header>
@@ -55,12 +62,14 @@
   <section id="team-view" class="view" aria-label="Time de guerra"></section>
   <section id="rules-view" class="view" aria-label="Critérios de seleção" hidden></section>
   <section id="war-view" class="view" aria-label="Guerras do clã" hidden></section>
+  <section id="cwl-view" class="view" aria-label="Planejamento e mérito da Liga CWL" hidden></section>
   <footer class="app-footer"><span>Uma sugestão de time. A escalação oficial é feita no jogo.</span><span>Projeto da comunidade · sem vínculo com a Supercell</span></footer>
 </main>
 <nav class="mobile-nav" aria-label="Navegação principal no celular">
   <button type="button" data-view="team" aria-current="page"><svg class="icon"><use href="#i-users"/></svg><span>Time</span></button>
   <button type="button" data-view="rules"><svg class="icon"><use href="#i-sliders"/></svg><span>Critérios</span></button>
   <button type="button" data-view="war"><svg class="icon"><use href="#i-swords"/></svg><span>Guerra</span></button>
+  <button type="button" data-view="cwl"><svg class="icon"><use href="#i-star"/></svg><span>CWL</span></button>
   <button type="button" id="mobile-copy" class="nav-copy" disabled><svg class="icon"><use href="#i-copy"/></svg><span>Copiar TSV</span></button>
 </nav>
 <dialog id="clan-dialog" class="clan-dialog" aria-labelledby="dialog-title">
@@ -73,6 +82,11 @@
   <div class="dialog-heading"><div><div class="eyebrow">HISTÓRICO PESSOAL</div><h2 id="stats-title">Estatísticas do jogador</h2></div><button type="button" class="icon-button" id="close-stats" aria-label="Fechar estatísticas"><svg class="icon"><use href="#i-x"/></svg></button></div>
   <label class="field stats-player-field"><span>Jogador</span><select id="stats-player" aria-label="Selecionar jogador para estatísticas"></select></label>
   <div id="stats-body"></div>
+</dialog>
+<dialog id="score-dialog" class="stats-dialog score-dialog" aria-labelledby="score-title">
+  <div class="dialog-heading"><div><div class="eyebrow">SCORES · VER CÁLCULO</div><h2 id="score-title">Cálculo do jogador</h2></div><button type="button" class="icon-button" id="close-score" aria-label="Fechar cálculo"><svg class="icon"><use href="#i-x"/></svg></button></div>
+  <label class="field stats-player-field"><span>Jogador da guerra</span><select id="score-player" aria-label="Selecionar jogador para conferir score"></select></label>
+  <div id="score-body"></div>
 </dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <noscript>Ative o JavaScript para consultar o clã e montar o time de guerra.</noscript>

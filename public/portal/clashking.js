@@ -22,10 +22,23 @@
     if (!ourSide) throw new Error('A guerra recebida não pertence ao clã consultado.');
     const opponentSide = ourSide === 1 ? 2 : 1;
     const sides = { 1: war.clan, 2: war.opponent };
-    const rosterFor = (side) => (Array.isArray(sides[side].members) ? sides[side].members : []).map((player) => ({
-      tag: tagOf(player.tag), name: String(player.name || tagOf(player.tag)),
-      th: number(player.townhallLevel ?? player.townHallLevel), position: number(player.mapPosition),
-    })).sort((a, b) => (a.position ?? 99) - (b.position ?? 99));
+    const rosterFor = (side) => {
+      const roster = (Array.isArray(sides[side].members) ? sides[side].members : []).map((player) => ({
+        tag: tagOf(player.tag), name: String(player.name || tagOf(player.tag)),
+        th: number(player.townhallLevel ?? player.townHallLevel), position: number(player.mapPosition),
+        sourcePosition: number(player.mapPosition),
+      })).sort((a, b) => (a.position ?? 99) - (b.position ?? 99));
+      // Stored CWL maps may use positions from the whole 50-player league roster.
+      // Rank only the complete active lineup, preserving the source for audit.
+      // Invalid/duplicate source positions stay untouched so validation rejects them.
+      const cwl = war.type === 'cwl' || war.attacksPerMember === 1;
+      if (cwl && roster.length === war.teamSize
+          && roster.every(p => Number.isInteger(p.position) && p.position >= 1 && p.position <= 50)
+          && new Set(roster.map(p => p.position)).size === roster.length) {
+        roster.forEach((p, i) => { p.position = i + 1; });
+      }
+      return roster;
+    };
     const rosters = { 1: rosterFor(1), 2: rosterFor(2) };
     const identities = new Map([...rosters[1], ...rosters[2]].map((player) => [player.tag, player]));
     const attacks = [];
@@ -61,11 +74,14 @@
     const teamSize = number(war.teamSize);
     return {
       id: `CK-${war.endTime || war.preparationStartTime || 'current'}`,
-      source: 'clashking', endTime: war.endTime,
+      source: 'clashking', endTime: war.endTime, startTime: war.startTime,
+      preparationStartTime: war.preparationStartTime,
+      battleModifier: typeof war.battleModifier === 'string' ? war.battleModifier : null,
+      warType: war.type || (attacksPerMember === 1 ? 'cwl' : 'random'),
       sourceComplete: [1, 2].every((side) => rosters[side].length === teamSize
         && attacks.filter((attack) => attack.side === side).length === number(sides[side].attacks)),
       header: {
-        type: war.type === 'cwl' ? 'Clan War League' : 'Clan War',
+        type: war.type === 'cwl' || attacksPerMember === 1 ? 'Clan War League' : 'Clan War',
         sizeHome: teamSize, sizeAway: teamSize, attacksPerMember,
         battleMode: war.battleModifier || 'Standard',
         matchedOn: dateLabel(war.preparationStartTime), startedOn: dateLabel(war.startTime), endedOn: dateLabel(war.endTime),
@@ -84,6 +100,5 @@
   }
 
   const api = { tagOf, timestamp, normalizeWar };
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  else root.ClashKing = api;
+  root.ClashKing = api;
 })(typeof window !== 'undefined' ? window : globalThis);

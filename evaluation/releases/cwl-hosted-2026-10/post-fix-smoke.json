@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-10-26T03:21:26.051Z",
+  "workerVersion": "207efb2d-fa58-4a0a-b373-74d825629b5b",
+  "checks": [
+    {
+      "name": "health",
+      "status": 200,
+      "elapsedMs": 815,
+      "region": "us-east-1"
+    },
+    {
+      "name": "legacy-session-refused",
+      "status": 200,
+      "elapsedMs": 264,
+      "region": "us-east-1",
+      "authenticated": false
+    },
+    {
+      "name": "persisted-historical-plan",
+      "status": 200,
+      "elapsedMs": 2430,
+      "region": "us-east-1",
+      "retrospective": true,
+      "missions": 15,
+      "participants": 15
+    }
+  ]
+}

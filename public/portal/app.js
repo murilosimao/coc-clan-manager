@@ -10,7 +10,7 @@
   const storageKey = 'clashspot-war-selector-v1';
   const roleNames = { Leader: 'Líder', 'Co-leader': 'Colíder', Elder: 'Ancião', Member: 'Membro' };
   const prefNames = { in: 'Disponível', out: 'Fora da guerra', unknown: 'Sem confirmação' };
-  const viewTitles = { team: 'Time de guerra', rules: 'Critérios', war: 'Guerras' };
+  const viewTitles = { team: 'Time de guerra', rules: 'Critérios', war: 'Guerras', cwl: 'Liga CWL' };
   const state = {
     clanTag: E.DEFAULT_CLAN, clanName: '', clanBadgeUrl: '', members: [], lastWar: null, currentWar: null,
     settings: structuredClone(E.DEFAULT_SETTINGS), selection: null, source: '', fetchedAt: '',
@@ -110,22 +110,35 @@
   }
   function render() {
     updateSelection(); renderHeader(); renderStatus(); renderTeam(); renderRules(); renderWar();
-    const canCopy = Boolean(state.selection?.selected.length) && !state.loading && !state.historyLoading;
-    $('#mobile-copy').disabled = !canCopy;
-    $('#refresh').disabled = state.loading;
+    updateCopyControl();
+    $('#refresh').disabled = state.loading || state.view === 'cwl' && Boolean(window.CwlApp.state.loading);
     if (!$('#clan-dialog').open) $('#clan-input').value = '#' + state.clanTag;
     $('#clan-form button[type=submit]').disabled = state.loading;
     $('#source-info').innerHTML = `<h3>Sobre os dados</h3><p>${state.source === 'demo' ? 'Demonstração de 20/10/2026. Esta captura não representa o clã em tempo real.' : 'Os escudos e membros vêm dos perfis públicos do jogo. O desempenho usa a última guerra concluída; sem registro, o jogador permanece elegível. As fontes podem apresentar atraso de atualização; o cache dura até 1 minuto.'}</p>${state.settings.usePlayerHistoryFallback ? '<p>Quando ativado, o histórico pessoal da última guerra normal concluída é usado somente para quem não tem registro na última guerra do clã.</p>' : ''}${state.fetchedAt ? `<p>Última consulta: ${esc(new Date(state.fetchedAt).toLocaleString('pt-BR'))}.</p>` : ''}`;
   }
+  function updateCopyControl() {
+    const canCopy = Boolean(state.selection?.selected.length) && !state.loading && !state.historyLoading;
+    $('#mobile-copy').disabled = state.view === 'cwl' ? !window.CwlApp.canCopy() : !canCopy;
+    const label = state.view === 'cwl' ? window.CwlApp.state.activeTab === 'ranking' ? 'Copiar ranking' : 'Copiar plano' : 'Copiar TSV';
+    $('#mobile-copy span').textContent = label;
+    $('#mobile-copy').setAttribute('aria-label', label + ' em TSV para colar em uma planilha');
+    $('#refresh').disabled = state.loading || state.view === 'cwl' && Boolean(window.CwlApp.state.loading);
+  }
   function renderHeader() {
     $('#clan-name').textContent = state.clanName || (state.loading ? 'Convocando os dados…' : 'Seu clã. Seu próximo time.');
     $('#clan-tag').textContent = '#' + state.clanTag;
-    $('#clan-eyebrow').textContent = state.source === 'demo' ? 'DEMONSTRAÇÃO · 20 OUT 2026' : 'PREPARAÇÃO DE GUERRA';
+    $('#clan-eyebrow').textContent = state.view === 'cwl' ? state.source === 'demo' ? 'CWL · DEMONSTRAÇÃO' : 'LIGA DE GUERRAS' : state.source === 'demo' ? 'DEMONSTRAÇÃO · 20 OUT 2026' : 'PREPARAÇÃO DE GUERRA';
     $('#data-freshness').textContent = state.loading ? 'Consultando o clã' : state.fetchedAt ? `Atualizado às ${new Date(state.fetchedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : state.source === 'demo' ? 'Dados de demonstração' : 'Dados ainda não carregados';
+    if (state.view === 'cwl') {
+      const cwl = window.CwlApp.state;
+      $('#data-freshness').textContent = cwl.demo ? 'Cenário ilustrativo' : cwl.loading ? 'Consultando a Liga' : cwl.rankingFetchedAt
+        ? `Liga consultada às ${new Date(cwl.rankingFetchedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Dados da Liga';
+    }
     $('#refresh').innerHTML = `${icon('refresh', state.loading ? 'spinning' : '')}<span>${state.loading ? 'Atualizando' : 'Atualizar'}</span>`;
   }
   function renderStatus() {
     const node = $('#status');
+    if (state.view === 'cwl') { node.hidden = true; return; }
     node.hidden = !state.loading && !state.historyLoading && !state.error && !state.dataWarnings.length && !state.historyLookupWarning && state.source !== 'demo';
     node.className = 'status-banner ' + (state.error ? 'error' : state.loading || state.historyLoading ? 'loading' : 'notice');
     if (state.error) node.innerHTML = `${icon('alert')}<div><strong>Não foi possível atualizar o clã</strong><p>${esc(state.error)}</p></div><button type="button" class="button secondary" data-command="refresh">Tentar de novo</button>`;
@@ -228,12 +241,12 @@
     const stars = Math.max(0, Math.min(3, Number(value) || 0));
     return `<span class="war-star-set stars-${stars}" role="img" aria-label="${esc(label)}">${[1, 2, 3].map((n) => icon('star', n <= stars ? 'filled' : 'unfilled')).join('')}</span>`;
   }
-  function warAttackList(attacks, identities, targetSide) {
+  function warAttackList(attacks, identities, targetSide, war) {
     if (!attacks.length) return '<p class="war-no-hits">Ainda sem ataques</p>';
     return attacks.map((attack, index) => {
       const impact = attack.newStars === 0 && attack.stars > 0 ? 'Limpeza' : `+${attack.newStars} no placar`;
       const target = identities.get(E.normalizeTag(attack.defender.tag)) || attack.defender;
-      return `<article class="war-hit"><span class="war-hit-order">${index + 1}º</span><span class="war-hit-target"><small class="war-hit-target-rank war-hit-target-rank--${targetSide}">#${esc(target.position ?? '—')}</small><strong>${esc(target.name || 'Alvo desconhecido')}</strong></span><span class="war-hit-result">${warStarSet(attack.stars, `${attack.stars} estrelas`)}<span>${E.fmtPct(attack.destruction)} <i>·</i> ${esc(attack.duration || '—')}</span></span><small class="war-hit-impact ${attack.newStars === 0 && attack.stars > 0 ? 'cleanup' : ''}">${impact}</small></article>`;
+      return `<article class="war-hit"><span class="war-hit-order">${index + 1}º</span><span class="war-hit-target"><small class="war-hit-target-rank war-hit-target-rank--${targetSide}">#${esc(target.position ?? '—')}</small><strong>${esc(target.name || 'Alvo desconhecido')}</strong></span><span class="war-hit-result">${warStarSet(attack.stars, `${attack.stars} estrelas`)}<span>${E.fmtPct(attack.destruction)} <i>·</i> ${esc(attack.duration || '—')}</span></span><small class="war-hit-impact ${attack.newStars === 0 && attack.stars > 0 ? 'cleanup' : ''}">${impact}</small>${window.ScoreUI.assessment(war, attack)}</article>`;
     }).join('');
   }
   function warMapRows(war) {
@@ -278,7 +291,7 @@
         }).join('');
         return `<div class="war-side-head war-side-head--${side}"><span class="war-position">${esc(player.position ?? position)}</span>${townHall(player.th)}<strong class="war-player-name">${esc(player.name)}</strong><span class="war-player-star-pair">${sets}</span></div>`;
       };
-      const sideMarkup = (player, playerAttacks, side) => `<div class="war-base-side war-base-side--${side}">${playerHeader(player, playerAttacks, side)}${player ? `<div class="war-side-hits">${warAttackList(playerAttacks, identities, side === 'home' ? 'away' : 'home')}</div>` : ''}</div>`;
+      const sideMarkup = (player, playerAttacks, side) => `<div class="war-base-side war-base-side--${side}">${playerHeader(player, playerAttacks, side)}${player ? `${window.ScoreUI.badges(war, player)}<div class="war-side-hits">${warAttackList(playerAttacks, identities, side === 'home' ? 'away' : 'home', war)}</div>` : ''}</div>`;
       rows.push(`<article class="war-base-pair" aria-label="Base ${position}">${sideMarkup(home, homeAttacks, 'home')}${sideMarkup(away, awayAttacks, 'away')}</article>`);
     }
     const html = rows.length ? rows.join('') : `<div class="war-map-empty">${icon(query ? 'search' : 'swords')}<span>${query ? 'Nenhum jogador encontrado nessa guerra.' : state.currentWarFilter === 'attacked' ? 'Ainda não há ataques registrados do nosso clã.' : 'Nenhuma base corresponde a este filtro.'}</span></div>`;
@@ -295,7 +308,7 @@
     const attackedCount = roster.filter((player) => attackedTags.has(E.normalizeTag(player.tag))).length;
     const result = warMapRows(war);
     const inputLabel = kind === 'current' ? 'Buscar jogador na guerra atual' : 'Buscar jogador na última guerra';
-    return `<section class="war-map" data-war-map-kind="${kind}" aria-label="Mapa de ataques"><div class="war-map-toolbar"><div class="war-map-title"><div class="eyebrow">MAPA DA GUERRA</div><h4>Bases e ataques</h4><small data-war-map-count>${result.count} de ${result.total} bases</small></div><label class="search-field war-map-search">${icon('search')}<input type="search" data-war-map-search aria-label="${inputLabel}" placeholder="Buscar jogador" value="${esc(state.warQuery)}"></label></div><div class="segments war-map-filters" role="group" aria-label="Filtrar mapa por ataques">${[['all', 'Todas', roster.length], ['attacked', 'Atacaram', attackedCount], ['pending', 'Pendentes', Math.max(0, roster.length - attackedCount)]].map(([filter, label, count]) => `<button type="button" data-current-war-filter="${filter}" aria-pressed="${state.currentWarFilter === filter}">${label}<span>${count}</span></button>`).join('')}</div><div class="war-map-list">${result.html}</div></section>`;
+    return `<section class="war-map" data-war-map-kind="${kind}" aria-label="Mapa de ataques">${window.ScoreUI.summary(war)}<div class="war-map-toolbar"><div class="war-map-title"><div class="eyebrow">MAPA DA GUERRA</div><h4>Bases e ataques</h4><small data-war-map-count>${result.count} de ${result.total} bases</small></div><label class="search-field war-map-search">${icon('search')}<input type="search" data-war-map-search aria-label="${inputLabel}" placeholder="Buscar jogador" value="${esc(state.warQuery)}"></label></div><div class="segments war-map-filters" role="group" aria-label="Filtrar mapa por ataques">${[['all', 'Todas', roster.length], ['attacked', 'Atacaram', attackedCount], ['pending', 'Pendentes', Math.max(0, roster.length - attackedCount)]].map(([filter, label, count]) => `<button type="button" data-current-war-filter="${filter}" aria-pressed="${state.currentWarFilter === filter}">${label}<span>${count}</span></button>`).join('')}</div><p class="war-score-map-caption">A posição organiza a lista. A avaliação usa o alvo escolhido em cada ataque.</p><div class="war-map-list">${result.html}</div></section>`;
   }
   function renderWarBattle(war, kind) {
     const ours = war.result.ourSide || 1;
@@ -342,6 +355,10 @@
       content += `<div class="war-empty-inline history-empty">${icon(stages.history === 'error' ? 'alert' : 'clock')}<span><strong>${stages.history === 'error' ? 'Histórico indisponível' : 'Nenhuma guerra anterior disponível'}</strong><small>O resultado anterior aparece aqui quando estiver disponível.</small></span></div>`;
     }
     $('#war-view').innerHTML = content;
+    if (state.view === 'war') queueMicrotask(() => {
+      if (state.currentWar) window.ScoreUI.ensure(state.currentWar);
+      if (state.lastWar && (state.previousWarExpanded || !state.currentWar)) window.ScoreUI.ensure(state.lastWar);
+    });
   }
   function updateWarMapLists() {
     for (const node of $$('[data-war-map-kind]')) {
@@ -358,8 +375,15 @@
   function setView(view, focus = true) {
     if (!viewTitles[view]) return;
     state.view = view;
+    document.body.dataset.view = view;
+    window.CwlApp.setActive(view === 'cwl');
+    renderHeader(); renderStatus(); updateCopyControl();
     for (const key of Object.keys(viewTitles)) $('#' + key + '-view').hidden = key !== view;
     $$('nav [data-view]').forEach((node) => { if (node.dataset.view === view) node.setAttribute('aria-current', 'page'); else node.removeAttribute('aria-current'); });
+    if (view === 'war') {
+      if (state.currentWar) window.ScoreUI.ensure(state.currentWar);
+      if (state.lastWar && (state.previousWarExpanded || !state.currentWar)) window.ScoreUI.ensure(state.lastWar);
+    }
     if (focus) { window.scrollTo({ top: 0, behavior: 'instant' }); $('#' + view + '-title')?.focus({ preventScroll: true }); }
   }
   async function loadPersonalHistoryFallback() {
@@ -434,7 +458,9 @@
     const normalized = E.normalizeTag(tag);
     if (!/^[0289PYLQGRJCUV]{3,15}$/.test(normalized)) { toast('Digite uma tag de clã válida, como #2G8QCR92V.'); return; }
     audit('clan_load_started');
+    window.ScoreUI.reset();
     state.clanTag = normalized; state.clanName = ''; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
+    window.CwlApp.setContext(normalized, false);
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false; state.historyLookupWarning = '';
     state.source = ''; state.dataWarnings = []; state.fetchedAt = ''; state.error = ''; state.loading = true;
     state.loadStages = null; state.memberProgress = null; state.currentWarFilter = 'all'; state.warQuery = ''; state.previousWarExpanded = false;
@@ -482,6 +508,7 @@
     finally { state.loading = false; render(); }
   }
   async function loadDemo() {
+    window.ScoreUI.reset();
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false;
     state.loading = true; state.loadStages = null; state.memberProgress = null; state.previousWarExpanded = false; state.currentWarFilter = 'all'; state.warQuery = ''; render();
     try {
@@ -492,6 +519,7 @@
       state.members = data.members; state.lastWar = E.buildWar(data.lastWar); state.currentWar = E.buildWar(data.currentWar);
       state.clanBadgeUrl = badgeUrl(data.lastWar.result.clans[data.lastWar.result.ourSide].badgeUrls);
       state.source = 'demo'; state.fetchedAt = ''; state.error = ''; state.dataWarnings = [];
+      window.CwlApp.setContext(state.clanTag, true);
       state.historyLookupWarning = state.settings.usePlayerHistoryFallback ? 'O histórico pessoal não é aplicado aos dados de demonstração.' : '';
       audit('demo_loaded');
     } catch (error) { state.error = error.message; }
@@ -601,17 +629,20 @@
     input.remove(); previous?.focus({ preventScroll: true }); return copied;
   }
   async function copySelection() {
-    const text = selectionTSV(); if (!text) return;
+    const cwl = state.view === 'cwl';
+    const text = cwl ? window.CwlApp.exportTSV() : selectionTSV(); if (!text) return;
     let copied = false;
     try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); copied = true; } } catch { /* Use the local fallback. */ }
     if (!copied) copied = fallbackCopy(text);
-    if (copied) { audit('selection_copied'); toast(`${state.selection.selected.length} jogadores copiados em colunas. Cole no Excel.`); }
+    if (copied) { audit('selection_copied'); toast(cwl ? `${window.CwlApp.state.activeTab === 'ranking' ? 'Ranking' : 'Plano'} copiado em colunas. Cole no Excel.` : `${state.selection.selected.length} jogadores copiados em colunas. Cole no Excel.`); }
+    else if (cwl) downloadSelection();
     else toast('Não foi possível copiar. Use “Baixar TSV” e abra o arquivo no Excel.');
   }
   function downloadSelection() {
-    const text = selectionTSV(); if (!text) return;
+    const cwl = state.view === 'cwl';
+    const text = cwl ? window.CwlApp.exportTSV() : selectionTSV(); if (!text) return;
     const url = URL.createObjectURL(new Blob(['\uFEFF' + text], { type: 'text/tab-separated-values;charset=utf-8' }));
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `time-${state.clanTag}-${new Date().toISOString().slice(0, 10)}.tsv`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${cwl ? 'cwl-' + window.CwlApp.state.activeTab : 'time'}-${state.clanTag}-${new Date().toISOString().slice(0, 10)}.tsv`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
     audit('selection_exported'); toast('TSV baixado. Abra no Excel ou em outra planilha.');
   }
   function openClan() {
@@ -631,7 +662,7 @@
     $('#close-stats').addEventListener('click', closeStats);
     $('#stats-player').addEventListener('change', (event) => { statsState.tag = event.target.value; statsState.name = state.members.find((m) => m.tag === statsState.tag)?.name || '#' + statsState.tag; loadStats(); });
     $('#stats-dialog').addEventListener('click', (event) => { if (event.target === $('#stats-dialog')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeStats(); } });
-    $('#refresh').addEventListener('click', () => loadClan());
+    $('#refresh').addEventListener('click', () => state.view === 'cwl' ? window.CwlApp.refresh() : loadClan());
     $('#open-clan').addEventListener('click', openClan);
     $('#close-clan').addEventListener('click', closeClan);
     $('#clan-dialog').addEventListener('click', (event) => { if (event.target === $('#clan-dialog')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeClan(); } });
@@ -659,8 +690,21 @@
       if (event.target.id === 'roster-search') { state.query = event.target.value; renderRoster(); }
       if (event.target.matches('[data-war-map-search]')) { state.warQuery = event.target.value; updateWarMapLists(); }
     });
+    $('#main').addEventListener('toggle', (event) => {
+      if (event.target.id === 'previous-war-disclosure') {
+        state.previousWarExpanded = event.target.open;
+        if (event.target.open && state.lastWar) window.ScoreUI.ensure(state.lastWar);
+      }
+    }, true);
   }
-  loadSettings(); bindEvents(); render(); setView('team', false); audit('page_view');
+  window.ScoreUI.init(() => { if (state.view === 'war') renderWar(); });
+  loadSettings();
+  const params = new URLSearchParams(location.search);
+  const requestedClan=String(params.get('clan')||'').replace(/^#/,'').toUpperCase();
+  if(/^[0289PYLQGRJCUV]{3,15}$/.test(requestedClan)){state.clanTag=requestedClan;$('#clan-input').value=requestedClan;}
+  window.CwlApp.init({ clanTag: params.get('demo') === '1' ? E.DEFAULT_CLAN : state.clanTag, demo: params.get('demo') === '1',
+    activeTab: params.get('tab'), onChange: () => { updateCopyControl(); if (state.view === 'cwl') renderHeader(); }, exportData: copySelection });
+  bindEvents(); render(); setView(params.get('view') === 'cwl' ? 'cwl' : 'team', false); audit('page_view');
   // Deterministic demo is available for design review; live failures never trigger it.
   if (new URLSearchParams(location.search).get('demo') === '1') loadDemo(); else loadClan();
   window.ClanManager = { state, selectionTSV, loadClan };

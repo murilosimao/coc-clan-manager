@@ -1,0 +1,148 @@
+{
+  "tags": [
+    "2GCU80QQU",
+    "2J8Y2JQJ0",
+    "2JGRJJQ9G"
+  ],
+  "edition": "2026-10",
+  "selected": "personal-p1",
+  "calibrator": {
+    "slope": 1.15,
+    "intercept": 0
+  },
+  "selection": "September first four rounds; validation September remaining rounds",
+  "createdAt": "2026-10-25T15:07:17.139Z",
+  "sourceHash": "3ad0bae046cfe1f38004dd6bc4e06d0579ac3452f28e0e23557e095d36837057",
+  "wars": 21,
+  "baseline": {
+    "n": 201,
+    "rps": 0.09723442107759071,
+    "observedPT": 0.5771144278606966,
+    "estimatedPT": 0.589366813819258,
+    "brier3": 0.1259541231033435
+  },
+  "candidate": {
+    "n": 201,
+    "rps": 0.09224403110168578,
+    "observedPT": 0.5771144278606966,
+    "estimatedPT": 0.5866734422052422,
+    "brier3": 0.11801941154246881
+  },
+  "calibrated": {
+    "n": 201,
+    "rps": 0.0924687056577599,
+    "observedPT": 0.5771144278606966,
+    "estimatedPT": 0.5932324630164316,
+    "brier3": 0.11585028468985506
+  },
+  "evidence": {
+    "before": 72,
+    "after": 64
+  },
+  "candidateIntervals": {
+    "war": {
+      "clusters": 21,
+      "ci95": [
+        -0.007899330871184324,
+        -0.002509271795169076
+      ]
+    },
+    "clan": {
+      "clusters": 3,
+      "ci95": [
+        -0.00622711310423009,
+        -0.0033230578190124927
+      ]
+    }
+  },
+  "calibratedIntervals": {
+    "war": {
+      "clusters": 21,
+      "ci95": [
+        -0.007206447713576722,
+        -0.002679800260473929
+      ]
+    },
+    "clan": {
+      "clusters": 3,
+      "ci95": [
+        -0.006890696076221343,
+        -0.003529051423670202
+      ]
+    }
+  },
+  "byClan": [
+    {
+      "clan": "2GCU80QQU",
+      "baseline": {
+        "n": 93,
+        "rps": 0.13791355645105866,
+        "observedPT": 0.3225806451612903,
+        "estimatedPT": 0.3718113854887093,
+        "brier3": 0.1401517923208776
+      },
+      "candidate": {
+        "n": 93,
+        "rps": 0.13323521064280192,
+        "observedPT": 0.3225806451612903,
+        "estimatedPT": 0.36453746652856045,
+        "brier3": 0.13321930364157314
+      },
+      "calibrated": {
+        "n": 93,
+        "rps": 0.1343142787021778,
+        "observedPT": 0.3225806451612903,
+        "estimatedPT": 0.35598027198825866,
+        "brier3": 0.13113637838220346
+      }
+    },
+    {
+      "clan": "2J8Y2JQJ0",
+      "baseline": {
+        "n": 36,
+        "rps": 0.047399012889247076,
+        "observedPT": 0.8333333333333334,
+        "estimatedPT": 0.8332140025384069,
+        "brier3": 0.1116467474436604
+      },
+      "candidate": {
+        "n": 36,
+        "rps": 0.044075955070234575,
+        "observedPT": 0.8333333333333334,
+        "estimatedPT": 0.833979544983317,
+        "brier3": 0.10394599735678346
+      },
+      "calibrated": {
+        "n": 36,
+        "rps": 0.04386996146557686,
+        "observedPT": 0.8333333333333334,
+        "estimatedPT": 0.8555144083062322,
+        "brier3": 0.1040421111413678
+      }
+    },
+    {
+      "clan": "2JGRJJQ9G",
+      "baseline": {
+        "n": 72,
+        "rps": 0.06960824198103298,
+        "observedPT": 0.7777777777777778,
+        "estimatedPT": 0.7484523143866428,
+        "brier3": 0.11476915486053693
+      },
+      "candidate": {
+        "n": 72,
+        "rps": 0.06338112887680288,
+        "observedPT": 0.7777777777777778,
+        "estimatedPT": 0.7499460260652531,
+        "brier3": 0.10542292467396841
+      },
+      "calibrated": {
+        "n": 72,
+        "rps": 0.06271754590481164,
+        "observedPT": 0.7777777777777778,
+        "estimatedPT": 0.7685422371162542,
+        "brier3": 0.10200983377814879
+      }
+    }
+  ]
+}

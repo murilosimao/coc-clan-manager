@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-10-26T02:02:34.107Z",
+  "origin": "https://coc-clan-manager.murilo-m-simao.workers.dev",
+  "before": {
+    "plans": 0,
+    "revisions": 0,
+    "policies": 0
+  },
+  "after": {
+    "plans": 0,
+    "revisions": 0,
+    "policies": 0
+  },
+  "publicProbesDidNotCreateRecords": true,
+  "checks": [
+    {
+      "name": "health",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsedMs": 2280
+    },
+    {
+      "name": "anonymous-session",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsedMs": 161,
+      "authenticated": false
+    },
+    {
+      "name": "unprepared-read",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsedMs": 2074,
+      "code": "plan_not_found"
+    },
+    {
+      "name": "anonymous-initialize",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "elapsedMs": 173,
+      "code": "session_required"
+    },
+    {
+      "name": "anonymous-revision",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "elapsedMs": 257,
+      "code": "session_required"
+    },
+    {
+      "name": "cross-origin-write",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsedMs": 65
+    },
+    {
+      "name": "forged-session",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsedMs": 727,
+      "authenticated": false
+    },
+    {
+      "name": "forbidden-proxy",
+      "status": 400,
+      "expected": 400,
+      "passed": true,
+      "elapsedMs": 56,
+      "code": "cwl_error"
+    },
+    {
+      "name": "public-empty-ranking",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsedMs": 2416
+    }
+  ],
+  "allPassed": true
+}

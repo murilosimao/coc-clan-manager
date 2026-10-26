@@ -40,13 +40,13 @@
     }).catch(() => {});
   }
 
-  async function request(path) {
+  async function request(path, options = {}) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
+    const timer = setTimeout(() => controller.abort(), options.timeout || 45000);
     try {
-      const response = await fetch(API_ORIGIN + path, { credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json', 'X-App-Session': getSessionId() } });
+      const response = await fetch(API_ORIGIN + path, { method:options.method||'GET',body:options.body,credentials:options.auth?'same-origin':'omit', signal: controller.signal, headers: { Accept: 'application/json', 'X-App-Session': getSessionId(),...options.headers } });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `A consulta falhou (${response.status}). Tente novamente.`);
+      if (!response.ok) {const error=new Error(data.error || `A consulta falhou (${response.status}). Tente novamente.`);error.status=response.status;error.code=data.code;throw error;}
       return data;
     } catch (error) {
       if (error.name === 'AbortError') throw new Error('A consulta demorou mais de 45 segundos. Tente novamente.');
@@ -190,5 +190,39 @@
     if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag)) throw new Error('Tag de jogador inválida.');
     return request('/api/players/' + encodeURIComponent('#' + tag) + '/war-stats');
   }
-  window.ClanAPI = { loadClan, loadPlayerStats, audit };
+  const scoreHistoryCache = new Map();
+  async function loadScoreHistory(clanTag, type) {
+    const tag = tagOf(clanTag);
+    if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag) || !['random', 'cwl'].includes(type)) throw new Error('Consulta de score inválida.');
+    const key = tag + ':' + type;
+    const cached = scoreHistoryCache.get(key);
+    if (cached && Date.now() - cached.at < 60000) return cached.promise;
+    const promise = request(pathFor(tag) + '/score-history?type=' + type);
+    scoreHistoryCache.set(key, { at: Date.now(), promise });
+    try { return await promise; } catch (error) { scoreHistoryCache.delete(key); throw error; }
+  }
+  const cwlClan = tag => {
+    const value = tagOf(tag);
+    if (!/^[0289PYLQGRJCUV]{3,15}$/.test(value)) throw new Error('Tag de clã inválida.');
+    return '/api/cwl/clans/' + encodeURIComponent('#' + value);
+  };
+  const cwlSeason = season => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(season)) throw new Error('Escolha uma edição válida da Liga.');
+    return '/seasons/' + season;
+  };
+  function loadCwlPlan(tag, start) {
+    if (!/^\d{8}T\d{6}\.\d{3}Z$/.test(start)) throw new Error('Escolha uma guerra válida.');
+    return request(cwlClan(tag) + '/wars/' + encodeURIComponent(start) + '/plan');
+  }
+  window.ClanAPI = { loadClan, loadPlayerStats, loadScoreHistory, audit,
+    cwlApiOrigin:API_ORIGIN||location.origin,
+    cwlLoginUrl:API_ORIGIN?API_ORIGIN+'/?view=cwl':null,
+    loadCwlSession:()=>API_ORIGIN?Promise.resolve({authenticated:false}):request('/api/cwl/auth/session',{auth:true}),
+    loginCwl:(email,password)=>request('/api/cwl/auth/login',{method:'POST',auth:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),
+    logoutCwl:()=>request('/api/cwl/auth/logout',{method:'POST',auth:true}),
+    initializeCwlPlan:(tag,start,archive)=>request(cwlClan(tag)+'/wars/'+encodeURIComponent(start)+'/plan/initialize',{method:'POST',auth:true,headers:{'Content-Type':'application/gzip'},body:archive,timeout:120000}),
+    reviseCwlPlan:(tag,start,body)=>request(cwlClan(tag)+'/wars/'+encodeURIComponent(start)+'/plan/revisions',{method:'POST',auth:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
+    loadCwlSeason: (tag, season) => request(cwlClan(tag) + cwlSeason(season)),
+    loadCwlAnalytics: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/analytics'),
+    loadCwlRanking: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/ranking'), loadCwlPlan };
 })();
