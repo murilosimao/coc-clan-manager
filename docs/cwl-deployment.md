@@ -36,6 +36,8 @@ Todos ficam fora do Git, fora de `public/` e com permissão local `600`. A conex
 
 `CWL_EDITORS` é um objeto JSON no formato `{"UUID":{"role":"leader","clanTag":"TAG"}}`; `coLeader` também é aceito. Não há promoção automática por email, cadastro ou metadados. Remover um UID da configuração revoga seu acesso na próxima verificação de sessão.
 
+O subdomínio atual da conta é `mbks.workers.dev`; o Worker atende em `https://coc-clan-manager.mbks.workers.dev`. Ao alterar esse endereço, atualizar também `API_ORIGIN` do frontend e o secret `CWL_APP_ORIGIN` da função, com a origem HTTPS exata. O vínculo criptográfico da sessão inclui a origem, e cookies de um hostname anterior não são reaproveitados no novo hostname.
+
 Cookies usam `HttpOnly`, `Secure` e `SameSite=Strict`. Seus valores também são cifrados com AES-GCM, usando chaves derivadas por finalidade do secret de transporte. A função aceita somente esse formato: cookies antigos com tokens Supabase em texto puro não autenticam nem renovam sessões na aplicação. Rotacionar `CWL_BACKEND_KEY` exige novo login.
 
 O Worker não encaminha o header `Cookie` ao Supabase. Ele filtra somente os cookies da CWL, cifra o transporte e os envia no header privado `X-CWL-Session`, com validade de 60 segundos e vínculo à origem. A função reconstrói o header de sessão apenas no Request interno. Headers forjados pelo visitante não são encaminhados. Isso evita registrar cookies nos logs automáticos de invocação da plataforma; logs de aplicação também não devem conter tokens, senhas ou conteúdo de requisições.
