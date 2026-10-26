@@ -2,7 +2,7 @@
 
 **Site principal:** https://coc-purosangue.duckdns.org/
 
-**Worker e API:** https://coc-clan-manager.murilo-m-simao.workers.dev
+**Worker e API:** https://coc-clan-manager.mbks.workers.dev
 
 **GitHub Pages:** https://murilosimao.github.io/coc-clan-manager/
 
