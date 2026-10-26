@@ -22,7 +22,6 @@ jobs:
     uses: ./.github/workflows/validate.yml
   deploy:
     needs: validate
-    if: vars.CWL_DEPLOY_READY == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

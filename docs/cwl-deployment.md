@@ -70,7 +70,7 @@ npx --yes supabase@2.122.0 functions deploy cwl --use-api --project-ref "$SUPABA
 3. Registrar os dois secrets de transporte no Worker: `npx wrangler secret bulk .env.cloudflare`.
 4. Publicar o Worker e depois os arquivos do frontend. A interface do Worker e GitHub Pages compartilham o código; o login no Pages leva ao domínio do Worker para não depender de cookies de terceiros.
 
-No GitHub, as rotinas de publicação dependem da validação e da variável **`CWL_DEPLOY_READY=true`**. Ela só deve ser ativada depois que a função e os secrets estiverem configurados. A função do Supabase tem workflow manual próprio. Os secrets de CI são `SUPABASE_ACCESS_TOKEN`, `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`; o projeto é indicado pela variável `SUPABASE_PROJECT_REF`. Credenciais do banco ficam somente no Supabase.
+No GitHub, o Pages publica o frontend após validação, sem liberar o deploy dos serviços. As rotinas do Worker e da função exigem também a variável **`CWL_DEPLOY_READY=true`**. Ela só deve ser ativada depois que a função e os secrets estiverem configurados. A função do Supabase tem workflow manual próprio. Os secrets de CI são `SUPABASE_ACCESS_TOKEN`, `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`; o projeto é indicado pela variável `SUPABASE_PROJECT_REF`. Credenciais do banco ficam somente no Supabase.
 
 `verify_jwt=false` na configuração da função desativa somente a autenticação automática do gateway: a própria função exige a chave privada do Worker em todas as chamadas e valida a sessão Supabase separadamente nas operações protegidas. Sem a chave de transporte, inclusive `/health` deve retornar 401 quando chamado diretamente na função.
 

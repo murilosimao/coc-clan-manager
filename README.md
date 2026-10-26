@@ -6,7 +6,7 @@
 
 **GitHub Pages:** https://murilosimao.github.io/coc-clan-manager/
 
-O workflow `pages.yml` publica somente o HTML e JavaScript estáticos após validação, quando `CWL_DEPLOY_READY=true`. Nesse endereço, a consulta pública usa a API do Worker por HTTPS. Para editar a CWL, o login leva à mesma aplicação no domínio do Worker, com cookies de sessão protegidos. O Worker permite CORS especificamente para `https://murilosimao.github.io` e `https://coc-purosangue.duckdns.org`, além de seu próprio domínio.
+O workflow `pages.yml` publica somente o HTML e JavaScript estáticos após validação. Nesse endereço, a consulta pública usa a API do Worker por HTTPS. Para editar a CWL, o login leva à mesma aplicação no domínio do Worker, com cookies de sessão protegidos. O Worker permite CORS especificamente para `https://murilosimao.github.io` e `https://coc-purosangue.duckdns.org`, além de seu próprio domínio.
 
 O domínio `coc-purosangue.duckdns.org` está vinculado ao Pages, com IPv4 `185.199.108.153` e certificado HTTPS. O Worker aceita esse host em HTTP e HTTPS; as consultas à API usam sempre HTTPS. A opção de exigir HTTPS está habilitada no Pages.
 
@@ -55,7 +55,7 @@ Clique em **ATQ** ou **DEF** para ver a fórmula substituída pelos valores do j
 
 O cálculo inicial executa em um Web Worker no navegador, sem bloquear a interface. Uma Edge Function privada valida e grava o plano no PostgreSQL do Supabase; somente líder e colíder autenticados podem preparar ou editar o plano. Visitantes consultam os planos salvos. A [preparação para publicação](docs/cwl-deployment.md) detalha secrets, autenticação, permissões do banco e a ordem de deploy.
 
-A [validação hospedada](evaluation/releases/cwl-hosted-2026-10/README.md) registra login real, persistência dos planos, tempos e recursos observados, além da proteção de sessão contra captura de cookies nos logs automáticos. A função e o Worker foram publicados; a atualização do GitHub Pages é uma etapa separada.
+A [validação hospedada](evaluation/releases/cwl-hosted-2026-10/README.md) registra login real, persistência dos planos, tempos e recursos observados, além da proteção de sessão contra captura de cookies nos logs automáticos. Worker e GitHub Pages têm publicações separadas; o domínio DuckDNS serve o frontend do Pages.
 
 A persistência do plano inicial, revisões e métricas de calibração estão documentadas em [docs/cwl-backend.md](docs/cwl-backend.md). O ranking usa a política versionada [cwl-merit-v1](docs/cwl-ranking.md), com memória de cálculo por missão e desempates por destruição e duração. Ambiente local: `npm run db:setup`, `npm run db:up`, `npm run db:migrate`, `npm run dev -- --port 8791`. Integração com PostgreSQL real: `npm run test:cwl`.
 
@@ -91,7 +91,7 @@ Para consultar os logs, abra **Workers & Pages → coc-clan-manager → Observab
 
 ## Publicação pelo GitHub Actions
 
-Os workflows de publicação dependem da validação e da variável `CWL_DEPLOY_READY=true`. Configure a função e os secrets primeiro, seguindo [docs/cwl-deployment.md](docs/cwl-deployment.md). O workflow `.github/workflows/deploy.yml` publica pushes em `main` ou pode ser acionado manualmente. Configure em **Settings → Secrets and variables → Actions → Repository secrets**:
+O Pages publica após validação, independentemente dos serviços. Os workflows do Worker e da função exigem também a variável `CWL_DEPLOY_READY=true`. Configure a função e os secrets primeiro, seguindo [docs/cwl-deployment.md](docs/cwl-deployment.md). O workflow `.github/workflows/deploy.yml` publica pushes em `main` ou pode ser acionado manualmente. Configure em **Settings → Secrets and variables → Actions → Repository secrets**:
 
 - `CLOUDFLARE_API_TOKEN`: token de deploy com permissão **Account / Workers Scripts / Edit**, limitado à conta de destino. O Wrangler pode precisar também de **Account Settings / Read** para descoberta da conta.
 - `CLOUDFLARE_ACCOUNT_ID`: identificador da conta de destino.
