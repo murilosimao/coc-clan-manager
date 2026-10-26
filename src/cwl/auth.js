@@ -1,5 +1,6 @@
 import { CwlError,requireCondition,clanTag } from './errors.js';
 import { readBytes } from './archive.js';
+import { sealSession,openSession } from './session-crypto.js';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const cookieResponse=(data,cookies=[],status=200)=>{
@@ -14,15 +15,15 @@ function config(env){
 }
 function origin(request,env){return env.CWL_PUBLIC_ORIGIN||new URL(request.url).origin;}
 function names(request,env){const url=new URL(origin(request,env)),local=['localhost','127.0.0.1','[::1]'].includes(url.hostname);return local?['cwl-access','cwl-refresh']:['__Host-cwl-access','__Host-cwl-refresh'];}
-function readCookies(request,env){
+async function readCookies(request,env){
   const all=new Map((request.headers.get('Cookie')||'').split(';').map(s=>{const i=s.indexOf('=');return [s.slice(0,i).trim(),s.slice(i+1)];}));
-  return names(request,env).map(n=>{const v=all.get(n)||'';return v.length<=8192?v:'';});
+  return Promise.all(names(request,env).map(async(n,i)=>{try{return await openSession(all.get(n),env.CWL_BACKEND_KEY,'cookie:'+origin(request,env)+':'+i);}catch{return '';}}));
 }
-function cookies(request,env,session){
+async function cookies(request,env,session){
   if(session)requireCondition([session.access_token,session.refresh_token].every(v=>typeof v==='string'&&v.length>0&&v.length<=8192&&/^[A-Za-z0-9._~-]+$/.test(v)),503,'Sessão inválida.','auth_unavailable');
   const local=['localhost','127.0.0.1','[::1]'].includes(new URL(origin(request,env)).hostname);
   const values=[session?.access_token||'',session?.refresh_token||''];
-  return names(request,env).map((name,i)=>`${name}=${values[i]}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${session?(i===0?Math.min(3600,Number(session.expires_in)||3600):28800):0}${local?'':'; Secure'}`);
+  return Promise.all(names(request,env).map(async(name,i)=>`${name}=${session?await sealSession(values[i],env.CWL_BACKEND_KEY,'cookie:'+origin(request,env)+':'+i):''}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${session?(i===0?Math.min(3600,Number(session.expires_in)||3600):28800):0}${local?'':'; Secure'}`));
 }
 export function requireSameOrigin(request,env){
   requireCondition(request.headers.get('Origin')===origin(request,env),403,'Faça esta operação pelo site autenticado.','csrf_origin');
@@ -44,7 +45,7 @@ export function createCwlAuth(fetcher=fetch){
     return {id:user.id,role:entry.role,clanTag:clanTag(entry.clanTag)};
   }
   async function current(request,env){
-    const [token]=readCookies(request,env);requireCondition(token,401,'Entre como líder ou colíder.','session_required');
+    const [token]=await readCookies(request,env);requireCondition(token,401,'Entre como líder ou colíder.','session_required');
     return editor(env,await call(env,'user',{token,method:'GET'}));
   }
   async function authorize(request,env,tag){
@@ -66,12 +67,12 @@ export function createCwlAuth(fetcher=fetch){
       const session=await call(env,'token?grant_type=password',{body:{email:data.email,password:data.password}});
       const who=editor(env,session.user);
       requireCondition(typeof session.access_token==='string'&&typeof session.refresh_token==='string',503,'Sessão inválida.');
-      return cookieResponse({authenticated:true,editor:who},cookies(request,env,session));
+      return cookieResponse({authenticated:true,editor:who},await cookies(request,env,session));
     }
-    const [token,refresh]=readCookies(request,env);
+    const [token,refresh]=await readCookies(request,env);
     if(action==='logout'){
       if(token)try{await call(env,'logout?scope=local',{token});}catch{}
-      return cookieResponse({authenticated:false},cookies(request,env,null));
+      return cookieResponse({authenticated:false},await cookies(request,env,null));
     }
     if(!token&&!refresh)return cookieResponse({authenticated:false});
     try{return cookieResponse({authenticated:true,editor:await current(request,env)});}catch(error){
@@ -80,10 +81,10 @@ export function createCwlAuth(fetcher=fetch){
         try{
           const session=await call(env,'token?grant_type=refresh_token',{body:{refresh_token:refresh}});
           const who=editor(env,session.user);
-          return cookieResponse({authenticated:true,editor:who},cookies(request,env,session));
+          return cookieResponse({authenticated:true,editor:who},await cookies(request,env,session));
         }catch(failure){if(failure.status===503||failure.status===429)throw failure;}
       }
-      return cookieResponse({authenticated:false},cookies(request,env,null));
+      return cookieResponse({authenticated:false},await cookies(request,env,null));
     }
   }
   return {handle,authorize};

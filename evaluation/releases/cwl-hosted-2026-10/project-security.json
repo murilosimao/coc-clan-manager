@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-26T03:20:49.667Z",
+  "checks": [
+    {
+      "check": "config/auth",
+      "status": 200,
+      "signupDisabled": true,
+      "anonymousUsersEnabled": false
+    },
+    {
+      "check": "ssl-enforcement",
+      "status": 200,
+      "sslEnforced": true,
+      "applied": true
+    },
+    {
+      "check": "postgrest",
+      "status": 200,
+      "cwlSchemaExposed": false
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import { sourceUrl,sourceProxy } from '../src/cwl/source-proxy.js';
 import { databaseOptions } from '../src/cwl/database.js';
 import { createWorker } from '../src/worker.js';
 import { createCwlHandler } from '../src/cwl/router.js';
+import { sealSession,openSession } from '../src/cwl/session-crypto.js';
 
 const app='https://coc-clan-manager.example.workers.dev',clan='2G8QCR92V';
 const leader='10000000-0000-4000-8000-000000000001',co='10000000-0000-4000-8000-000000000002',other='10000000-0000-4000-8000-000000000003';
@@ -26,6 +27,10 @@ function fakeAuth(url,options){
 function request(action,{method='GET',body,cookie,origin=app}={}){
   return new Request(app+'/api/cwl/auth/'+action,{method,headers:{Origin:origin,'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},body:body?JSON.stringify(body):undefined});
 }
+async function sessionCookie(token,refresh=''){
+  const values=await Promise.all([token,refresh].map((v,i)=>v?sealSession(v,env.CWL_BACKEND_KEY,'cookie:'+app+':'+i):''));
+  return '__Host-cwl-access='+values[0]+'; __Host-cwl-refresh='+values[1];
+}
 
 test('login grants only allowlisted leader/co-leader and tokens remain in secure HttpOnly cookies',async()=>{
   const auth=createCwlAuth(fakeAuth);
@@ -33,16 +38,16 @@ test('login grants only allowlisted leader/co-leader and tokens remain in secure
     const response=await auth.handle(request('login',{method:'POST',body:{email,password:'test-only-password'}}),env);
     const text=await response.text();assert.equal(JSON.parse(text).editor.role,role);assert(!text.includes('token'));assert(!text.includes('password'));
     const cookies=response.headers.getSetCookie();assert.equal(cookies.length,2);
-    for(const cookie of cookies){assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);assert.match(cookie,/^__Host-/);assert(!cookie.includes('Domain='));}
+    for(const cookie of cookies){assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);assert.match(cookie,/^__Host-/);assert(!cookie.includes('Domain='));assert(!cookie.includes('leader-token'));assert(!cookie.includes('co-token'));assert.match(cookie,/=v1\./);}
   }
   await assert.rejects(auth.handle(request('login',{method:'POST',body:{email:'outsider@test.invalid',password:'test'}}),env),e=>e.status===403);
 });
 test('verified session role cannot be forged through user metadata or used for another clan',async()=>{
-  const auth=createCwlAuth(fakeAuth),r=token=>new Request(app+'/api/cwl/clans/'+clan+'/wars/day/plan/revisions',{method:'POST',headers:{Origin:app,Cookie:'__Host-cwl-access='+token}});
-  assert.equal((await auth.authorize(r('co-token'),env,clan)).role,'coLeader');
-  await assert.rejects(auth.authorize(r('other-token'),env,clan),e=>e.status===403);
-  await assert.rejects(auth.authorize(r('leader-token'),env,'2998YJPU2'),e=>e.code==='clan_forbidden');
-  await assert.rejects(auth.authorize(r('expired-token'),env,clan),e=>e.status===401);
+  const auth=createCwlAuth(fakeAuth),r=async token=>new Request(app+'/api/cwl/clans/'+clan+'/wars/day/plan/revisions',{method:'POST',headers:{Origin:app,Cookie:await sessionCookie(token)}});
+  assert.equal((await auth.authorize(await r('co-token'),env,clan)).role,'coLeader');
+  await assert.rejects(auth.authorize(await r('other-token'),env,clan),e=>e.status===403);
+  await assert.rejects(auth.authorize(await r('leader-token'),env,'2998YJPU2'),e=>e.code==='clan_forbidden');
+  await assert.rejects(auth.authorize(await r('expired-token'),env,clan),e=>e.status===401);
 });
 test('login and mutation require the exact app origin; public Pages cannot send authenticated writes',async()=>{
   const auth=createCwlAuth(fakeAuth);
@@ -53,10 +58,21 @@ test('login and mutation require the exact app origin; public Pages cannot send 
 });
 test('session refresh rotates cookies and logout clears both without returning bearer tokens',async()=>{
   const auth=createCwlAuth(fakeAuth);
-  const refreshed=await auth.handle(request('session',{cookie:'__Host-cwl-access=expired; __Host-cwl-refresh=old-refresh'}),env);
-  assert.equal((await refreshed.json()).editor.id,leader);assert.match(refreshed.headers.getSetCookie()[0],/renewed-token/);
-  const logout=await auth.handle(request('logout',{method:'POST',cookie:'__Host-cwl-access=leader-token'}),env);
+  const refreshed=await auth.handle(request('session',{cookie:await sessionCookie('expired','old-refresh')}),env);
+  assert.equal((await refreshed.json()).editor.id,leader);assert(!refreshed.headers.getSetCookie()[0].includes('renewed-token'));
+  const renewed=refreshed.headers.getSetCookie().map(v=>v.split(';')[0]).join('; ');
+  assert.equal((await(await auth.handle(request('session',{cookie:renewed}),env)).json()).editor.id,leader);
+  const logout=await auth.handle(request('logout',{method:'POST',cookie:await sessionCookie('leader-token')}),env);
   assert(logout.headers.getSetCookie().every(c=>c.includes('Max-Age=0')));
+});
+test('plaintext legacy tokens, tampered ciphertext and rotated keys cannot authenticate or refresh a session',async()=>{
+  const auth=createCwlAuth(fakeAuth);
+  for(const cookie of ['__Host-cwl-access=leader-token; __Host-cwl-refresh=old-refresh',
+    (await sessionCookie('leader-token','old-refresh')).replaceAll('v1.','v1.broken'),
+    '__Host-cwl-access='+await sealSession('leader-token',env.CWL_BACKEND_KEY+'rotated','cookie:'+app+':0')]){
+    assert.deepEqual(await(await auth.handle(request('session',{cookie}),env)).json(),{authenticated:false});
+    await assert.rejects(auth.authorize(new Request(app+'/api/cwl/plan',{method:'POST',headers:{Origin:app,Cookie:cookie}}),env,clan),e=>e.status===401);
+  }
 });
 test('private Supabase function refuses direct access and unexpected proxy origins',async()=>{
   const edge=createEdgeHandler(env,{fetcher:fakeAuth});
@@ -68,14 +84,32 @@ test('private Supabase function refuses direct access and unexpected proxy origi
 });
 test('Worker bridge streams requests, strips forged authorization and rate-limits before contacting the function',async()=>{
   let calls=0;
-  const options={CWL_BACKEND_URL:'https://example.supabase.co/functions/v1/cwl',CWL_BACKEND_KEY:env.CWL_BACKEND_KEY,CWL_LOGIN_LIMITER:{limit:async()=>({success:true})}};
-  const response=await bridgeCwl(new Request(app+'/api/cwl/auth/login',{method:'POST',headers:{Origin:app,Authorization:'Bearer forged','X-CWL-Proxy-Key':'forged','Content-Type':'application/json'},body:'{}'}),options,async(url,init)=>{
+  const options={CWL_BACKEND_URL:'https://example.supabase.co/functions/v1/cwl',CWL_BACKEND_KEY:env.CWL_BACKEND_KEY,CWL_BACKEND_REGION:'us-east-1',CWL_LOGIN_LIMITER:{limit:async()=>({success:true})}};
+  const response=await bridgeCwl(new Request(app+'/api/cwl/auth/login',{method:'POST',headers:{Origin:app,Authorization:'Bearer forged','X-CWL-Proxy-Key':'forged','X-CWL-Session':'forged','x-region':'sa-east-1',Cookie:'__Host-cwl-access=opaque-test-cookie; unrelated=must-not-forward','Content-Type':'application/json'},body:'{}'}),options,async(url,init)=>{
     calls++;assert.equal(url,'https://example.supabase.co/functions/v1/cwl/api/cwl/auth/login');
     assert.equal(init.headers.get('Authorization'),null);assert.equal(init.headers.get('X-CWL-Proxy-Key'),env.CWL_BACKEND_KEY);
+    assert.equal(init.headers.get('x-region'),'us-east-1');
+    assert.equal(init.headers.get('Cookie'),null);
+    const transport=JSON.parse(await openSession(init.headers.get('X-CWL-Session'),env.CWL_BACKEND_KEY,'transport:'+app));
+    assert.equal(transport.cookies,'__Host-cwl-access=opaque-test-cookie');assert(!init.headers.get('X-CWL-Session').includes('opaque-test-cookie'));
     assert.equal(await new Response(init.body).text(),'{}');return Response.json({ok:true});
   });assert.equal(response.status,200);assert.equal(calls,1);
   options.CWL_LOGIN_LIMITER.limit=async()=>({success:false});
   await assert.rejects(bridgeCwl(request('login',{method:'POST'}),options,async()=>{throw Error('Must not fetch');}),e=>e.status===429);
+});
+test('encrypted cookies survive the private bridge without a logged Cookie header; stale transport is refused',async()=>{
+  const edge=createEdgeHandler(env,{fetcher:fakeAuth}),cookie=await sessionCookie('co-token','old-refresh');
+  const options={CWL_BACKEND_URL:'https://example.supabase.co/functions/v1/cwl',CWL_BACKEND_KEY:env.CWL_BACKEND_KEY};
+  const result=await bridgeCwl(request('session',{cookie}),options,async(url,init)=>{
+    assert.equal(init.headers.get('Cookie'),null);assert(!init.headers.get('X-CWL-Session').includes(cookie));
+    return edge(new Request(url,init));
+  });
+  assert.equal((await result.json()).editor.role,'coLeader');
+  for(const createdAt of [Date.now()-61000,Date.now()+31000]){
+    const encrypted=await sealSession(JSON.stringify({cookies:cookie,createdAt}),env.CWL_BACKEND_KEY,'transport:'+app);
+    const r=await edge(new Request(options.CWL_BACKEND_URL+'/api/cwl/auth/session',{headers:{'X-CWL-Proxy-Key':env.CWL_BACKEND_KEY,'X-CWL-Public-Origin':app,'X-CWL-Session':encrypted}}));
+    assert.equal(r.status,401);assert.equal((await r.json()).code,'invalid_proxy_session');
+  }
 });
 test('public source proxy accepts only the fixed Clash routes and never arbitrary URLs or redirects',async()=>{
   const good='https://api.clashk.ing/v2/clan/%232G8QCR92V/wars?limit=35&type=cwl';assert.equal(sourceUrl(good),good);

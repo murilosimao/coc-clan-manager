@@ -55,6 +55,8 @@ Clique em **ATQ** ou **DEF** para ver a fórmula substituída pelos valores do j
 
 O cálculo inicial executa em um Web Worker no navegador, sem bloquear a interface. Uma Edge Function privada valida e grava o plano no PostgreSQL do Supabase; somente líder e colíder autenticados podem preparar ou editar o plano. Visitantes consultam os planos salvos. A [preparação para publicação](docs/cwl-deployment.md) detalha secrets, autenticação, permissões do banco e a ordem de deploy.
 
+A [validação hospedada](evaluation/releases/cwl-hosted-2026-10/README.md) registra login real, persistência dos planos, tempos e recursos observados, além da proteção de sessão contra captura de cookies nos logs automáticos. A função e o Worker foram publicados; a atualização do GitHub Pages é uma etapa separada.
+
 A persistência do plano inicial, revisões e métricas de calibração estão documentadas em [docs/cwl-backend.md](docs/cwl-backend.md). O ranking usa a política versionada [cwl-merit-v1](docs/cwl-ranking.md), com memória de cálculo por missão e desempates por destruição e duração. Ambiente local: `npm run db:setup`, `npm run db:up`, `npm run db:migrate`, `npm run dev -- --port 8791`. Integração com PostgreSQL real: `npm run test:cwl`.
 
 A aba **Liga CWL** apresenta plano do dia, edição inline e ranking, com exportação TSV da visão atual. A [documentação do frontend](docs/cwl-frontend.md) explica os estados, a atualização de dias acompanhados e a revisão autenticada. Para explorar o exemplo ilustrativo: `http://127.0.0.1:8791/?demo=1&view=cwl`. Para verificar os fluxos no navegador: `npm run test:ui`, com o preview local em execução.

@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-10-26T02:07:19.025Z",
+  "databaseRegion": "us-east-2",
+  "checks": [
+    {
+      "requestedRegion": "automatic",
+      "actualRegion": "sa-east-1",
+      "status": 200,
+      "elapsedMs": 2052
+    },
+    {
+      "requestedRegion": "us-east-1",
+      "actualRegion": "us-east-1",
+      "status": 200,
+      "elapsedMs": 911
+    },
+    {
+      "requestedRegion": "automatic",
+      "actualRegion": "sa-east-1",
+      "status": 200,
+      "elapsedMs": 1843
+    },
+    {
+      "requestedRegion": "us-east-1",
+      "actualRegion": "us-east-1",
+      "status": 200,
+      "elapsedMs": 508
+    }
+  ],
+  "note": "Sequential health probes; latency includes client network, gateway and database. Not a CPU measurement."
+}

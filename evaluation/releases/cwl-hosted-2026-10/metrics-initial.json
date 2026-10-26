@@ -1,0 +1,323 @@
+{
+  "checkedAt": "2026-10-26T02:11:32.636Z",
+  "checks": [
+    {
+      "name": "cookies",
+      "status": 200,
+      "result": [
+        {
+          "invocations": 32,
+          "unredactedSessionCookieRows": 4
+        }
+      ]
+    },
+    {
+      "name": "resources",
+      "status": 200,
+      "result": [
+        {
+          "cpuMs": "49",
+          "eventType": "Shutdown",
+          "memoryBytes": "11853078",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:10:54.342000"
+        },
+        {
+          "cpuMs": "674",
+          "eventType": "Shutdown",
+          "memoryBytes": "28332957",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:10:33.070000"
+        },
+        {
+          "cpuMs": "39",
+          "eventType": "Shutdown",
+          "memoryBytes": "11722198",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:10:11.039000"
+        },
+        {
+          "cpuMs": "52",
+          "eventType": "Shutdown",
+          "memoryBytes": "11699022",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:10:08.978000"
+        },
+        {
+          "cpuMs": "56",
+          "eventType": "Shutdown",
+          "memoryBytes": "11671374",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T02:08:33.696000"
+        },
+        {
+          "cpuMs": "39",
+          "eventType": "Shutdown",
+          "memoryBytes": "11671494",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:08:31.781000"
+        },
+        {
+          "cpuMs": "41",
+          "eventType": "Shutdown",
+          "memoryBytes": "11670958",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:08:29.089000"
+        },
+        {
+          "cpuMs": "63",
+          "eventType": "Shutdown",
+          "memoryBytes": "11671446",
+          "reason": "EarlyDrop",
+          "region": "us-east-1",
+          "timestamp": "2026-10-26T02:08:14.635000"
+        },
+        {
+          "cpuMs": "43",
+          "eventType": "Shutdown",
+          "memoryBytes": "11671078",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:07:59.092000"
+        },
+        {
+          "cpuMs": "47",
+          "eventType": "Shutdown",
+          "memoryBytes": "11721862",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:04:21.679000"
+        },
+        {
+          "cpuMs": "41",
+          "eventType": "Shutdown",
+          "memoryBytes": "11730974",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:04:19.602000"
+        },
+        {
+          "cpuMs": "25",
+          "eventType": "Shutdown",
+          "memoryBytes": "11031614",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:04:18.704000"
+        },
+        {
+          "cpuMs": "29",
+          "eventType": "Shutdown",
+          "memoryBytes": "11025062",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:04:18.095000"
+        },
+        {
+          "cpuMs": "23",
+          "eventType": "Shutdown",
+          "memoryBytes": "11068542",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:04:17.322000"
+        },
+        {
+          "cpuMs": "52",
+          "eventType": "Shutdown",
+          "memoryBytes": "11798654",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:45.030000"
+        },
+        {
+          "cpuMs": "15",
+          "eventType": "Shutdown",
+          "memoryBytes": "11012366",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:44.249000"
+        },
+        {
+          "cpuMs": "14",
+          "eventType": "Shutdown",
+          "memoryBytes": "10972310",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:44.033000"
+        },
+        {
+          "cpuMs": "13",
+          "eventType": "Shutdown",
+          "memoryBytes": "10974206",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:43.771000"
+        },
+        {
+          "cpuMs": "41",
+          "eventType": "Shutdown",
+          "memoryBytes": "11730782",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:41.679000"
+        },
+        {
+          "cpuMs": "15",
+          "eventType": "Shutdown",
+          "memoryBytes": "10947174",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:41.527000"
+        },
+        {
+          "cpuMs": "36",
+          "eventType": "Shutdown",
+          "memoryBytes": "11671182",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:39.635000"
+        },
+        {
+          "cpuMs": "41",
+          "eventType": "Shutdown",
+          "memoryBytes": "11722038",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:29.731000"
+        },
+        {
+          "cpuMs": "40",
+          "eventType": "Shutdown",
+          "memoryBytes": "11723966",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:27.687000"
+        },
+        {
+          "cpuMs": "26",
+          "eventType": "Shutdown",
+          "memoryBytes": "11031518",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:26.231000"
+        },
+        {
+          "cpuMs": "14",
+          "eventType": "Shutdown",
+          "memoryBytes": "11025062",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:25.635000"
+        },
+        {
+          "cpuMs": "24",
+          "eventType": "Shutdown",
+          "memoryBytes": "11078198",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:24.321000"
+        },
+        {
+          "cpuMs": "43",
+          "eventType": "Shutdown",
+          "memoryBytes": "11722182",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:05.759000"
+        },
+        {
+          "cpuMs": "42",
+          "eventType": "Shutdown",
+          "memoryBytes": "11724006",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:03.723000"
+        },
+        {
+          "cpuMs": "30",
+          "eventType": "Shutdown",
+          "memoryBytes": "11029006",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:03:02.460000"
+        },
+        {
+          "cpuMs": "19",
+          "eventType": "Shutdown",
+          "memoryBytes": "10947174",
+          "reason": "EarlyDrop",
+          "region": "sa-east-1",
+          "timestamp": "2026-10-26T02:02:50.562000"
+        }
+      ]
+    },
+    {
+      "name": "requests",
+      "status": 200,
+      "result": [
+        {
+          "averageMs": 1536.3333333333333,
+          "maxMs": 2432,
+          "n": 6,
+          "route": "health",
+          "status": "200"
+        },
+        {
+          "averageMs": 997,
+          "maxMs": 997,
+          "n": 1,
+          "route": "health",
+          "status": "401"
+        },
+        {
+          "averageMs": 21172,
+          "maxMs": 21172,
+          "n": 1,
+          "route": "initialize",
+          "status": "201"
+        },
+        {
+          "averageMs": 82,
+          "maxMs": 82,
+          "n": 1,
+          "route": "initialize",
+          "status": "401"
+        },
+        {
+          "averageMs": 940,
+          "maxMs": 1225,
+          "n": 2,
+          "route": "login",
+          "status": "200"
+        },
+        {
+          "averageMs": 1442.6,
+          "maxMs": 4261,
+          "n": 15,
+          "route": "other",
+          "status": "200"
+        },
+        {
+          "averageMs": 2046.8,
+          "maxMs": 2222,
+          "n": 5,
+          "route": "other",
+          "status": "404"
+        },
+        {
+          "averageMs": 93,
+          "maxMs": 93,
+          "n": 1,
+          "route": "revision",
+          "status": "401"
+        }
+      ]
+    }
+  ]
+}

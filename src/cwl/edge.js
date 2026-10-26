@@ -1,6 +1,7 @@
 import { createCwlHandler } from './router.js';
 import { createCwlAuth } from './auth.js';
 import { CwlError,requireCondition } from './errors.js';
+import { openSession } from './session-crypto.js';
 
 async function sameSecret(provided,expected){
   if(typeof expected!=='string'||expected.length<32)return false;
@@ -16,8 +17,16 @@ export function createEdgeHandler(environment,{fetcher=fetch,provider,database,c
       requireCondition(await sameSecret(request.headers.get('X-CWL-Proxy-Key'),env.CWL_BACKEND_KEY),401,'Acesso não autorizado.');
       const app=new URL(env.CWL_APP_ORIGIN),received=request.headers.get('X-CWL-Public-Origin');
       requireCondition(app.origin===received,403,'Origem não autorizada.');
+      const headers=new Headers(request.headers);headers.delete('Cookie');
+      if(headers.has('X-CWL-Session')){
+        let session;try{session=JSON.parse(await openSession(headers.get('X-CWL-Session'),env.CWL_BACKEND_KEY,'transport:'+app.origin));}catch{}
+        requireCondition(session&&typeof session.cookies==='string'&&session.cookies.length<=16384&&Number.isFinite(session.createdAt)
+          &&session.createdAt<=clock()+30000&&clock()-session.createdAt<=60000,401,'Sessão de transporte inválida.','invalid_proxy_session');
+        headers.set('Cookie',session.cookies);
+      }
+      headers.delete('X-CWL-Session');
       const url=new URL(request.url),index=url.pathname.indexOf('/api/cwl/');requireCondition(index>=0,404,'Rota não encontrada.');
-      const local=new Request(app.origin+url.pathname.slice(index)+url.search,{method:request.method,headers:request.headers,
+      const local=new Request(app.origin+url.pathname.slice(index)+url.search,{method:request.method,headers,
         body:['GET','HEAD'].includes(request.method)?undefined:request.body,duplex:'half'});
       const options={...env,CWL_REQUIRE_RESTRICTED_DB:'true',CWL_PUBLIC_ORIGIN:app.origin};
       return await auth.handle(local,options)||await api(local,options);

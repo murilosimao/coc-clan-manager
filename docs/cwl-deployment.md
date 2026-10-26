@@ -4,6 +4,8 @@
 
 O navegador consulta fontes públicas pelo proxy e executa `war-ordinal-v2` e `cwl-assignment-v2.1` em um Web Worker. O Worker da Cloudflare faz apenas o proxy de fontes e encaminha a API da CWL a uma Edge Function privada do Supabase. A função valida sessão, escopo do clã, dados e fórmulas, reconstrói a otimização e persiste o plano; ela não repete o ajuste ordinal. Nenhum servidor precisa ficar rodando permanentemente.
 
+`CWL_BACKEND_REGION` seleciona a região da função pelo header `x-region`, definido somente pelo Worker. O banco atual está em `us-east-2`; as funções são invocadas em `us-east-1` para reduzir as viagens de rede ao banco. Remover essa variável retorna à seleção automática da plataforma. A configuração deve acompanhar a região do banco e ser conferida pelo header de resposta `x-sb-edge-region`.
+
 O Supabase Data API fica desabilitado. A conexão com Postgres usa a role `cwl_runtime`, sem privilégios administrativos, DDL, DELETE, TRUNCATE ou bypass de RLS. Tabelas e funções do schema `cwl` não têm grants para `PUBLIC`, `anon`, `authenticated` ou `service_role`. A role recebe apenas as operações necessárias; snapshots e histórico têm triggers de imutabilidade. O proprietário/migrador do projeto continua sendo administrativo e precisa ser protegido separadamente.
 
 ## Preparação do projeto
@@ -33,6 +35,10 @@ O primeiro comando aplica somente as migrations de `cwl` e as permissões da rol
 Todos ficam fora do Git, fora de `public/` e com permissão local `600`. A conexão administrativa não deve ser copiada para o Worker, a função ou GitHub Actions. A Edge Function usa a URL e a chave pública de Auth fornecidas automaticamente pelo Supabase; nenhuma chave de Auth ou de banco chega ao frontend.
 
 `CWL_EDITORS` é um objeto JSON no formato `{"UUID":{"role":"leader","clanTag":"TAG"}}`; `coLeader` também é aceito. Não há promoção automática por email, cadastro ou metadados. Remover um UID da configuração revoga seu acesso na próxima verificação de sessão.
+
+Cookies usam `HttpOnly`, `Secure` e `SameSite=Strict`. Seus valores também são cifrados com AES-GCM, usando chaves derivadas por finalidade do secret de transporte. A função aceita somente esse formato: cookies antigos com tokens Supabase em texto puro não autenticam nem renovam sessões na aplicação. Rotacionar `CWL_BACKEND_KEY` exige novo login.
+
+O Worker não encaminha o header `Cookie` ao Supabase. Ele filtra somente os cookies da CWL, cifra o transporte e os envia no header privado `X-CWL-Session`, com validade de 60 segundos e vínculo à origem. A função reconstrói o header de sessão apenas no Request interno. Headers forjados pelo visitante não são encaminhados. Isso evita registrar cookies nos logs automáticos de invocação da plataforma; logs de aplicação também não devem conter tokens, senhas ou conteúdo de requisições.
 
 ## Validação antes de publicar
 
