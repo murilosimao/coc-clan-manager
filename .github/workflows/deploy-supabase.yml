@@ -1,0 +1,29 @@
+name: Deploy CWL Supabase function
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: supabase-cwl-production
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+  deploy:
+    needs: validate
+    if: vars.CWL_DEPLOY_READY == 'true'
+    runs-on: ubuntu-latest
+    environment: supabase-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:supabase
+      - name: Deploy private persistence function
+        run: npx --yes supabase@2.122.0 functions deploy cwl --use-api --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}

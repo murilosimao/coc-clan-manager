@@ -9,3 +9,5 @@ node_modules/
 .DS_Store
 coverage/
 _site/
+supabase/functions/cwl/backend.js
+supabase/.temp/

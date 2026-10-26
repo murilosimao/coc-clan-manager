@@ -40,13 +40,13 @@
     }).catch(() => {});
   }
 
-  async function request(path) {
+  async function request(path, options = {}) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
+    const timer = setTimeout(() => controller.abort(), options.timeout || 45000);
     try {
-      const response = await fetch(API_ORIGIN + path, { credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json', 'X-App-Session': getSessionId() } });
+      const response = await fetch(API_ORIGIN + path, { method:options.method||'GET',body:options.body,credentials:options.auth?'same-origin':'omit', signal: controller.signal, headers: { Accept: 'application/json', 'X-App-Session': getSessionId(),...options.headers } });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `A consulta falhou (${response.status}). Tente novamente.`);
+      if (!response.ok) {const error=new Error(data.error || `A consulta falhou (${response.status}). Tente novamente.`);error.status=response.status;error.code=data.code;throw error;}
       return data;
     } catch (error) {
       if (error.name === 'AbortError') throw new Error('A consulta demorou mais de 45 segundos. Tente novamente.');
@@ -215,6 +215,13 @@
     return request(cwlClan(tag) + '/wars/' + encodeURIComponent(start) + '/plan');
   }
   window.ClanAPI = { loadClan, loadPlayerStats, loadScoreHistory, audit,
+    cwlApiOrigin:API_ORIGIN||location.origin,
+    cwlLoginUrl:API_ORIGIN?API_ORIGIN+'/?view=cwl':null,
+    loadCwlSession:()=>API_ORIGIN?Promise.resolve({authenticated:false}):request('/api/cwl/auth/session',{auth:true}),
+    loginCwl:(email,password)=>request('/api/cwl/auth/login',{method:'POST',auth:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),
+    logoutCwl:()=>request('/api/cwl/auth/logout',{method:'POST',auth:true}),
+    initializeCwlPlan:(tag,start,archive)=>request(cwlClan(tag)+'/wars/'+encodeURIComponent(start)+'/plan/initialize',{method:'POST',auth:true,headers:{'Content-Type':'application/gzip'},body:archive,timeout:120000}),
+    reviseCwlPlan:(tag,start,body)=>request(cwlClan(tag)+'/wars/'+encodeURIComponent(start)+'/plan/revisions',{method:'POST',auth:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
     loadCwlSeason: (tag, season) => request(cwlClan(tag) + cwlSeason(season)),
     loadCwlAnalytics: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/analytics'),
     loadCwlRanking: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/ranking'), loadCwlPlan };

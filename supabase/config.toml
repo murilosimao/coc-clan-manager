@@ -1,0 +1,7 @@
+project_id = "coc-clan-manager"
+
+[functions.cwl]
+# The function validates the private Worker bridge key itself. It is never a
+# browser endpoint; user sessions are checked separately for every mutation.
+verify_jwt = false
+entrypoint = "./functions/cwl/index.ts"

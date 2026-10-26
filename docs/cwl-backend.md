@@ -2,9 +2,11 @@
 
 ## Escopo desta entrega
 
-API de planejamento síncrono, PostgreSQL e otimização determinística. O frontend ainda não chama estas rotas. Não há chamada a modelos de decisão, cron ou fila de planejamento.
+API de persistência, PostgreSQL e otimização determinística. Na publicação gratuita, o ajuste ordinal e a proposta inicial rodam em um Web Worker no navegador. O Worker da Cloudflare encaminha as operações a uma Edge Function privada do Supabase, que autentica a liderança, valida os dados e grava o plano. Não há cron, fila de planejamento ou modelo de IA.
 
-O primeiro `GET .../plan` consulta as fontes públicas, calcula e persiste a proposta antes de responder. A chave `(clan_tag, start_time)` identifica a guerra, inclusive se vários dias forem consultados simultaneamente. Transação e advisory lock garantem uma única geração mesmo com vários visitantes. Uma revisão da líder nunca recalcula a proposta inicial. Uma atualização de resultados nunca redistribui missões.
+`GET .../plan` consulta um plano salvo; não gera registros para visitantes. Líder ou colíder autenticado usa **Preparar plano neste aparelho**, e o navegador envia o snapshot comprimido a `POST .../plan/initialize`. A função valida cronologia, fontes, fórmula dos scores, escalas e evidência e reconstrói a matriz/otimização sem repetir o ajuste ordinal. A chave `(clan_tag, start_time)` e o advisory lock preservam uma única proposta; a descompressão ocorre depois do lock, evitando modelos duplicados em acessos concorrentes. Uma revisão não recalcula a proposta inicial e uma atualização de resultados não redistribui missões.
+
+O modo antigo de ajuste no servidor permanece disponível nos testes comparativos. O Wrangler de produção exige a ponte configurada e recusa a CWL com 503 se ela estiver ausente. Não há fallback automático para geração pública no servidor.
 
 ## Ambiente local
 
@@ -34,7 +36,8 @@ Todas as rotas estão sob `/api/cwl`. Tags aceitam `#` codificado ou somente o i
 |---|---|---|
 | GET | `/health` | Confere conexão e migrations |
 | GET | `/clans/:tag/seasons/:YYYY-MM` | Lista guerras CWL registradas no mês; não promete histórico completo |
-| GET | `/clans/:tag/wars/:warStart/plan` | Gera uma vez ou recupera; retorna 201 na criação, 200 na leitura |
+| GET | `/clans/:tag/wars/:warStart/plan` | Recupera o plano; 404 quando a liderança ainda não o preparou |
+| POST | `.../plan/initialize` | Liderança envia o cálculo comprimido; cria uma vez (201) ou reutiliza o existente (200) |
 | POST | `.../plan/revisions` | Acrescenta edição/aprovação da líder |
 | POST | `.../plan/sync` | Consulta resultados confiáveis e grava observação, sem novo plano |
 | POST | `.../plan/reviews` | Resolve atribuição ambígua de ataque a missão, com justificativa |
@@ -44,9 +47,11 @@ Todas as rotas estão sob `/api/cwl`. Tags aceitam `#` codificado ou somente o i
 | GET | `/clans/:tag/seasons/:YYYY-MM/ranking` | Ranking de mérito, política versionada e memória de cálculo por oportunidade |
 | GET | `/clans/:tag/seasons/:YYYY-MM/dataset` | Exporta JSON de confrontos realmente observados para análise futura |
 
-As rotas de escrita, auditoria e dataset exigem `Authorization: Bearer <LEADER_API_KEY>`. A credencial só pode operar no `LEADER_CLAN_TAG` configurado. Configuração ausente bloqueia a escrita. Nenhuma chave é enviada aos serviços de Clash, impressa em logs ou devolvida pela API. A futura UI precisará de autenticação da líder; a credencial de servidor não deve ser incluída no JavaScript público.
+As rotas de escrita, auditoria e dataset exigem sessão Supabase Auth de um UID presente em `CWL_EDITORS`, com role `leader` ou `coLeader` e clã autorizado. Tokens ficam em cookies HttpOnly, Secure, SameSite=Strict, sem domínio compartilhado; as mutações exigem a origem exata da aplicação. Nenhum token ou chave é devolvido ao JavaScript. Em GitHub Pages, o login leva à mesma aplicação hospedada no Worker para manter cookies de primeira parte. O login tem limitação de tentativas no Cloudflare, além das proteções do Supabase Auth.
 
-Leituras públicas permitem a geração inicial. A requisição termina somente depois do COMMIT, sem 202/job pendente. O GET de um plano já salvo consulta resultados se a última observação tiver mais de 60 segundos; falha da fonte preserva o plano e retorna `trackingWarning`. Observações idênticas são deduplicadas. A origem é sempre um host fixo; não há importação de dados arbitrários por visitantes.
+`LEADER_API_KEY` pertence somente ao adaptador legado de testes/operação local e não autentica a API de produção. A Edge Function exige uma chave privada de transporte do Worker e recusa acesso direto. A consulta pública entrega dados da aplicação; o navegador nunca acessa tabelas do Supabase.
+
+A gravação termina somente depois do COMMIT, sem 202/job pendente. O GET de um plano já salvo consulta resultados se a última observação tiver mais de 60 segundos; falha da fonte preserva o plano e retorna `trackingWarning`. Observações idênticas são deduplicadas. A preparação usa fontes públicas permitidas em rotas fixas; cada requisição ao proxy faz apenas uma consulta externa. Não há importação ou geração de planos por visitantes.
 
 ### Aprovar
 
@@ -90,6 +95,8 @@ Para cada confronto, os três cortes do modelo ordinal geram uma distribuição 
 
 O algoritmo húngaro maximiza a soma desses valores, atribuindo um alvo distinto a cada ataque restante. Não se otimiza a soma de `ATQ-DEF`, que não distinguiria distribuições completas. A matriz fica preservada para auditoria e para comparar alterações manuais.
 
+Em `cwl-assignment-v2.1`, somente os pesos enviados ao otimizador são convertidos em inteiros na precisão de `1e-9` estrela. Isso estabiliza empates entre runtimes JavaScript. As probabilidades, scores e estrelas exibidas mantêm a precisão original. A comparação congelada encontrou uma troca equivalente de dois alvos, sem diferença no total esperado, e manteve o erro histórico da versão melhorada.
+
 A meta é o maior número de estrelas acima do resultado atual com sustentação maior ou igual a `goalSupport`. Nesta versão experimental o valor é **0,70**, gravado no plano. Se não houver nível sustentado, sugere-se a próxima estrela com aviso explícito. Esse parâmetro é uma hipótese inicial, **ainda não uma probabilidade individual calibrada**. Histórico insuficiente e diferenças de CV além de três níveis ficam sinalizados para revisão manual; todos os jogadores permanecem no plano. O algoritmo de atribuição e o limiar permanecem iguais ao snapshot funcional.
 
 No primeiro acesso com guerra já em andamento, só ataques ainda disponíveis são distribuídos; bases triplicadas são retiradas e o ganho adicional considera o placar existente. Resultados já existentes ficam `before_plan`. Uma guerra já encerrada pode gerar reconstrução `retrospective:true`, útil para auditoria estatística, sem possibilidade de aprovação e sem atribuir missões oficiais a ataques passados.
@@ -102,7 +109,10 @@ No primeiro acesso com guerra já em andamento, só ataques ainda disponíveis s
 - `observations`: snapshots recebidos, deduplicados e append-only.
 - `attacks`: projeção dos ataques observados e sua atribuição à missão.
 - `reviews`: resolução manual de ambiguidades, append-only.
-- `ranking_policies`: política de mérito imutável por clã/edição, fixada na primeira criação de plano (ou primeira consulta analítica de uma edição legada).
+- `ranking_policies`: política de mérito imutável por clã/edição, fixada na primeira criação de plano; consultar uma edição não cria registros.
+- `plan_archives`: snapshot completo comprimido, com hash e identidade do editor que o submeteu; append-only.
+
+Leituras usuais não carregam snapshots completos. O ranking consulta a matriz e os resultados sem descomprimir o histórico. Apenas a auditoria autenticada recupera o modelo e as fontes integrais. Consultar uma edição sem planos não cria uma política de ranking no banco.
 
 Adoção mede alvos mantidos, metas mantidas, missões integralmente preservadas, metas elevadas/reduzidas e revisão aprovada. Execução mede cumprimento/superação da missão efetiva, aderência ao alvo original, contribuição real ao placar, pendências e ataques não usados após o encerramento.
 
@@ -120,10 +130,8 @@ As métricas estão prontas para calibrar o próximo dia/edição, mas não há 
 
 A comparação estatística usa somente confrontos realmente atacados. Resultados para alvos alternativos não são inventados e não há ranking retroativo de mérito. Metas históricas são diagnósticas sobre os alvos reais. O relatório separa guerras já avaliadas e grupos externos novos; o arquivo `prior-evaluation-keys.json` preserva a lista usada para essa separação. Bootstrap por guerra e por clã, amostra disponível e limitações acompanham os números.
 
-## Implantação posterior
+## Publicação
 
-O Worker suporta `HYPERDRIVE.connectionString` ou `DATABASE_URL` do ambiente. Use TLS conforme o provedor e configure credenciais como secrets. Hyperdrive deve ter cache de consultas desativado para esta carga transacional, que exige leitura imediatamente consistente das versões. A role de aplicação deve operar apenas no schema `cwl`; migrations devem usar uma role própria.
+O projeto Supabase foi preparado separando a credencial administrativa e a role `cwl_runtime`, sem DDL, superuser ou bypass de RLS. A aplicação exige essa role restrita. A conexão remota verifica certificado e hostname; a conexão local do Compose continua isolada em loopback. Supavisor em modo transacional usa `prepare:false` e `max_pipeline:1`; migrations usam a conexão direta.
 
-O PostgreSQL de produção ainda será disponibilizado pelo usuário. Não houve deploy, push ou aplicação de migrations fora do ambiente local.
-
-O ajuste estatístico usa mais CPU que os **10 ms por requisição do Workers Free**. A execução síncrona foi validada localmente; antes de publicar, é necessário usar um runtime serverless com orçamento de CPU suficiente (por exemplo Workers Paid) ou adaptar a hospedagem do núcleo. Não se deve tratar o sucesso local como validação do limite gratuito. Referências: [limites de Workers](https://developers.cloudflare.com/workers/platform/limits/) e [Postgres.js com Hyperdrive](https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/postgres-js/).
+O roteiro de configuração, secrets, ordem de publicação e testes após deploy está em [cwl-deployment.md](cwl-deployment.md). O custo pesado fica no navegador; a função do Supabase faz validação/persistência com orçamento diferente dos 10 ms do Workers Free. Métricas locais não substituem a verificação do ambiente publicado. Referências: [limites de Workers](https://developers.cloudflare.com/workers/platform/limits/), [limites de Edge Functions](https://supabase.com/docs/guides/functions/limits) e [conexão Postgres](https://supabase.com/docs/guides/database/connecting-to-postgres).

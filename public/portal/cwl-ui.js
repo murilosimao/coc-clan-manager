@@ -3,6 +3,16 @@
   'use strict';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  const canEdit=state=>state.demo||state.editor?.clanTag===state.clanTag&&['leader','coLeader'].includes(state.editor.role);
+  function authControl(state){
+    if(state.demo)return '';
+    if(state.editor)return `<span class="cwl-auth-role">${state.editor.role==='leader'?'Líder':'Colíder'}</span>${button('logout','Sair',state.demoEditMode||state.loading?'disabled':'')}`;
+    if(state.loginUrl)return `<a class="button secondary" href="${esc(state.loginUrl+'&clan='+encodeURIComponent(state.clanTag))}">Entrar como liderança</a>`;
+    return button('login','Entrar como liderança');
+  }
+  function loginDialog(state){
+    return `<div class="cwl-confirm-backdrop"><section class="cwl-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cwl-login-title"><h3 id="cwl-login-title">Acesso da liderança</h3><p>Use a conta de líder ou colíder autorizada para este clã.</p><form id="cwl-login-form"><label for="cwl-login-email">Email</label><input id="cwl-login-email" name="email" type="email" autocomplete="username" required value="${esc(state.loginEmail)}" ${state.loginBusy?'disabled':''}><label for="cwl-login-password">Senha</label><input id="cwl-login-password" name="password" type="password" autocomplete="current-password" required ${state.loginBusy?'disabled':''}>${state.authError?`<p class="cwl-auth-error" role="alert">${esc(state.authError)}</p>`:''}<div class="cwl-confirm-actions">${button('login-close','Cancelar',state.loginBusy?'disabled':'')}<button type="submit" class="button primary" ${state.loginBusy?'disabled':''}>${state.loginBusy?'Entrando…':'Entrar'}</button></div></form></section></div>`;
+  }
   const known = value => value !== null && value !== undefined && Number.isFinite(Number(value));
   const number = (value, digits = 1) => known(value) ? Number(value).toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits }) : '—';
   const percent = value => known(value) ? `${number(Number(value) * 100, 0)}%` : '—';
@@ -48,7 +58,7 @@
     const assignments = state.plan?.effective?.assignments || state.plan?.current?.assignments || [];
     const rows = state.activeTab === 'ranking' ? ranking?.entries || [] : state.plan?.initial?.participants || [];
     const canExport = rows.some(p => { const hit = state.plan?.outcomes?.find(h => h.attackerTag === p.tag); const m = hit && !state.plan?.retrospective ? hit.mission : assignments.find(m => m.attackerTag === p.tag); return !query || (state.activeTab === 'ranking' ? [p.name, p.tag] : [p.name, p.tag, m?.defenderName, m?.defenderTag]).some(v => String(v || '').toLocaleLowerCase('pt-BR').includes(query)); });
-    return `<div class="cwl-header"><div><h2 id="cwl-title" tabindex="-1">Liga de Guerra de Clãs</h2><p>Alvos, missões e mérito.</p></div><div class="cwl-toolbar"><label class="cwl-season-field" for="cwl-season"><span>Edição</span><input type="month" id="cwl-season" value="${esc(season)}" aria-label="Edição da Liga de Guerra de Clãs" ${state.demo ? 'disabled title="Exemplo da edição outubro de 2026"' : ''}></label><button type="button" class="button secondary" data-cwl-action="refresh" ${state.loading ? 'disabled' : ''}>${icon('refresh')}<span>Atualizar CWL</span></button><button type="button" class="button secondary cwl-export" data-cwl-action="export" ${state.loading || !canExport ? 'disabled' : ''}>${icon('copy')}<span>Copiar TSV</span></button></div></div>`;
+    return `<div class="cwl-header"><div><h2 id="cwl-title" tabindex="-1">Liga de Guerra de Clãs</h2><p>Alvos, missões e mérito.</p></div><div class="cwl-toolbar">${authControl(state)}<label class="cwl-season-field" for="cwl-season"><span>Edição</span><input type="month" id="cwl-season" value="${esc(season)}" aria-label="Edição da Liga de Guerra de Clãs" ${state.demo||state.demoEditMode ? 'disabled' : ''}></label><button type="button" class="button secondary" data-cwl-action="refresh" ${state.loading||state.demoEditMode ? 'disabled' : ''}>${icon('refresh')}<span>Atualizar CWL</span></button><button type="button" class="button secondary cwl-export" data-cwl-action="export" ${state.loading || !canExport ? 'disabled' : ''}>${icon('copy')}<span>Copiar TSV</span></button></div></div>`;
   }
   function tabs(activeTab) {
     return `<div class="cwl-tabs" role="tablist" aria-label="Informações da CWL"><button type="button" id="cwl-tab-plan" role="tab" aria-selected="${activeTab === 'plan'}" aria-controls="cwl-panel" data-cwl-action="tab" data-tab="plan">${icon('swords')}Plano do dia</button><button type="button" id="cwl-tab-ranking" role="tab" aria-selected="${activeTab === 'ranking'}" aria-controls="cwl-panel" data-cwl-action="tab" data-tab="ranking">${icon('flag')}Ranking de mérito</button></div>`;
@@ -83,7 +93,7 @@
     return hit.targetFollowed === false ? ['Alvo diferente', 'danger'] : hit.missionFulfilled ? hit.missionSurpassed ? ['Meta superada', 'surpassed'] : ['Missão cumprida', 'success'] : ['Abaixo da meta', 'warning'];
   }
   function targetControl(participant, plan, state, draft, defender, targetMetrics) {
-    const editable = state.demo && state.demoEditMode && plan.warState !== 'warEnded' && draft
+    const editable = canEdit(state) && state.demoEditMode && plan.warState !== 'warEnded' && draft
       && !plan.outcomes?.some(hit => hit.attackerTag === participant.tag);
     if (!editable) return `<strong>${esc(defender)}</strong>`;
     const id = `cwl-demo-target-${esc(participant.tag)}`;
@@ -97,7 +107,7 @@
     return `<button type="button" id="${id}" class="cwl-target-trigger" data-cwl-action="demo-target-toggle" data-attacker-tag="${esc(participant.tag)}" aria-label="Alterar alvo de ${esc(participant.name || tag(participant.tag))}">${esc(defender)}${icon('chevron')}</button>`;
   }
   function goalControl(participant, plan, state, mission, hit) {
-    const editable = state.demo && state.demoEditMode && plan.warState !== 'warEnded' && mission && !hit;
+    const editable = canEdit(state) && state.demoEditMode && plan.warState !== 'warEnded' && mission && !hit;
     if (!editable) return stars(mission?.goalStars);
     const goal = Number(mission.goalStars);
     return `<select id="cwl-demo-goal-${esc(participant.tag)}" class="cwl-goal-select" data-cwl-demo-field="goal" data-attacker-tag="${esc(participant.tag)}" aria-label="Meta de estrelas para ${esc(participant.name || tag(participant.tag))}">${[1, 2, 3].map(value => `<option value="${value}" ${value === goal ? 'selected' : ''}>${value} ${value === 1 ? 'estrela' : 'estrelas'}</option>`).join('')}</select>`;
@@ -113,7 +123,7 @@
     const hit = plan.outcomes?.find(a => a.attackerTag === participant.tag);
     const approvedMission = hit && !plan.retrospective ? hit.mission : assignments.find(m => m.attackerTag === participant.tag);
     const draftMission = !hit && !plan.retrospective ? plan.current?.assignments?.find(m => m.attackerTag === participant.tag) : null;
-    const mission = state.demo && state.demoEditMode && draftMission ? draftMission : approvedMission;
+    const mission = canEdit(state) && state.demoEditMode && draftMission ? draftMission : approvedMission;
     const attacker = mission?.attackerName || participant.name || tag(participant.tag);
     const actualFirst = Boolean(hit && (plan.retrospective || !mission));
     const proposedDefender = mission?.defenderName || (mission?.defenderTag ? names.get(mission.defenderTag) || tag(mission.defenderTag) : 'Sem alvo no plano');
@@ -124,19 +134,19 @@
     const originalMission = plan.initial?.assignments?.find(m => m.attackerTag === participant.tag);
     const matchupChanged = Boolean(mission && originalMission && mission.defenderTag !== originalMission.defenderTag);
     const targetDefenseScore = targetData?.defenseScore ?? (matchupChanged ? null : mission?.defenseScore);
-    const targetLabel = actualFirst ? 'Alvo atacado' : state.demo && state.demoEditMode && draftMission ? 'Alvo · rascunho' : hit?.mission ? `Missão v${hit.missionRevision ?? '—'} · alvo` : state.demo && plan.demoLocalAppliedOnce ? 'Alvo simulado' : plan.effective ? 'Alvo aprovado' : 'Alvo proposto';
+    const targetLabel = actualFirst ? 'Alvo atacado' : canEdit(state) && state.demoEditMode && draftMission ? 'Alvo · rascunho' : hit?.mission ? `Missão v${hit.missionRevision ?? '—'} · alvo` : state.demo && plan.demoLocalAppliedOnce ? 'Alvo simulado' : plan.effective ? 'Alvo aprovado' : 'Alvo proposto';
     const targetCV = actualFirst ? actualCandidate?.th : mission?.defenderCV;
     const targetEvidence = targetData || (matchupChanged ? {} : mission);
     const outsideRange = mission && known(mission.attackerCV) && known(targetCV) && Math.abs(mission.attackerCV - targetCV) > 3;
     const limitedEvidence = [mission?.attackEvidence, targetEvidence?.defenseEvidence].some(e => ['reference','limited'].includes(e?.level)) || mission?.warnings?.includes('small_model_sample');
     const evidenceNote = outsideRange ? 'CV fora da faixa validada · revisar meta' : limitedEvidence ? 'Histórico limitado · revisar missão' : '';
-    const editable = Boolean(state.demo && state.demoEditMode && draftMission && !hit && plan.warState !== 'warEnded');
-    const targetAssignments = state.demo && state.demoEditMode ? plan.current?.assignments || assignments : assignments;
+    const editable = Boolean(canEdit(state) && state.demoEditMode && draftMission && !hit && plan.warState !== 'warEnded');
+    const targetAssignments = canEdit(state) && state.demoEditMode ? plan.current?.assignments || assignments : assignments;
     const duplicate = duplicateTargetWarning(actualFirst ? hit.defenderTag : mission?.defenderTag, participant.tag, targetAssignments, names);
     return `<div class="cwl-mission-item"><div class="cwl-mission-summary${editable ? ' is-editable' : ''}"><div class="cwl-person"><span class="cwl-person-label">Atacante${participant.position ? ` · #${esc(participant.position)}` : ''}</span><strong>${esc(attacker)}</strong><div class="cwl-person-data">${th(mission?.attackerCV ?? participant.th ?? participant.townhallLevel)}${mission ? inlineScore('ATQ', mission.attackScore, mission) : ''}</div></div><span class="cwl-versus" aria-hidden="true">→</span><div class="cwl-person cwl-defender"><span class="cwl-person-label">${targetLabel}</span>${targetControl(participant, plan, state, draftMission, defender, targetMetrics)}<div class="cwl-person-data">${mission || actualFirst ? th(targetCV) : '<small>Ataque fora do planejamento inicial</small>'}${mission || actualFirst ? inlineScore('DEF', targetDefenseScore, targetEvidence) : ''}</div>${duplicate}${evidenceNote ? `<small class="cwl-evidence-note">${esc(evidenceNote)}</small>` : ''}</div><div class="cwl-plan-result"><div class="cwl-goal"><span>${plan.retrospective ? 'Missão oficial' : 'Meta'}</span>${goalControl(participant, plan, state, mission, hit)}</div><div class="cwl-outcome"><div class="cwl-outcome-result">${hit ? attackStars(hit.stars) : '—'}${statusTag(result, tone)}</div>${hit ? attackFacts(hit) : ''}</div></div></div></div>`;
   }
   function demoPlanControls(plan, state) {
-    if (!plan || !plan.current) return '';
+    if (!plan || !plan.current || plan.warState==='warEnded') return '';
     const active = new Map((plan.effective?.assignments || []).map(m => [m.attackerTag, m]));
     const pending = (plan.current.assignments || []).filter(m => {
       const approved = active.get(m.attackerTag);
@@ -152,11 +162,11 @@
         : pending ? `${pending} ${pending === 1 ? 'missão em rascunho' : 'missões em rascunho'}. Use o botão “Editar” para alterar direto na lista.`
           : 'Sem alterações no rascunho. Você pode editar as missões pendentes direto na lista.';
     const editAction = button('demo-edit-toggle', 'Editar', 'id="cwl-demo-edit-toggle" aria-label="Editar alvos e metas"');
-    const applyAction = `<button type="button" class="button primary" id="cwl-demo-activate" data-cwl-action="demo-activate" aria-label="Salvar alterações no exemplo local" ${pending ? '' : 'disabled'}>Salvar</button>`;
-    const cancelAction = button('demo-cancel', 'Cancelar', 'id="cwl-demo-cancel" aria-label="Cancelar edição"');
-    const resetAction = state.demoEditMode ? '' : button('demo-reset', 'Restaurar exemplo', 'id="cwl-demo-reset"');
+    const applyAction = `<button type="button" class="button primary" id="cwl-demo-activate" data-cwl-action="demo-activate" aria-label="${state.demo?'Salvar alterações no exemplo local':'Salvar e aprovar as missões'}" ${state.saveBusy||!pending&&plan.effective ? 'disabled' : ''}>${state.saveBusy?'Salvando…':'Salvar'}</button>`;
+    const cancelAction = button('demo-cancel', 'Cancelar', 'id="cwl-demo-cancel" aria-label="Cancelar edição"'+(state.saveBusy?' disabled':''));
+    const resetAction = state.demoEditMode||!state.demo ? '' : button('demo-reset', 'Restaurar exemplo', 'id="cwl-demo-reset"');
     const actions = state.demoEditMode ? `${cancelAction}${applyAction}` : editAction;
-    return `<section class="cwl-demo-controls" aria-live="polite"><div class="cwl-demo-copy"><strong>Simulação editável</strong><p>${status} Nada é enviado à API ou gravado no servidor.</p></div><div class="cwl-demo-actions">${resetAction}</div><div class="cwl-demo-dock ${state.demoEditMode ? 'is-editing' : 'is-idle'}" role="group" aria-label="Ações de edição do plano">${actions}</div></section>`;
+    return `<section class="cwl-demo-controls" aria-live="polite"><div class="cwl-demo-copy"><strong>${state.demo?'Simulação editável':'Revisão da liderança'}</strong><p>${status} ${state.demo?'Nada é enviado à API ou gravado no servidor.':'Salvar aprova as missões pendentes e registra uma nova versão.'}</p></div><div class="cwl-demo-actions">${resetAction}</div><div class="cwl-demo-dock ${state.demoEditMode ? 'is-editing' : 'is-idle'}" role="group" aria-label="Ações de edição do plano">${actions}</div></section>`;
   }
   function demoCancelDialog() {
     const discard = '<button type="button" class="button primary" id="cwl-demo-cancel-confirm" data-cwl-action="demo-cancel-confirm">Descartar alterações</button>';
@@ -168,15 +178,19 @@
     const changedGoals = known(a.goalsRaised) && known(a.goalsLowered) ? Number(a.goalsRaised) + Number(a.goalsLowered) : null;
     return `<details class="cwl-guide" data-cwl-detail="adoption-${esc(plan.warStart)}"><summary>${icon('sliders')}O que mudou no plano inicial${icon('chevron')}</summary><div class="cwl-guide-content"><p><strong>${number(a.targetRetained, 0)} alvos mantidos</strong> e <strong>${number(changedGoals, 0)} metas alteradas</strong> na aprovação v${esc(a.approvedRevision)}.</p><p>${number(a.fullyRetained, 0)} de ${number(a.missions, 0)} missões foram integralmente preservadas: mesmo alvo e mesma meta. Taxa de preservação: <strong>${percent(a.retentionRate)}</strong>.</p><p>${number(a.modified, 0)} missões tiveram alvo ou meta ajustados. Das metas, ${number(a.goalsRaised, 0)} foram elevadas e ${number(a.goalsLowered, 0)} foram reduzidas; ${number(a.goalRetained, 0)} permaneceram iguais.</p><p>Esta comparação usa a última aprovação, v${esc(a.approvedRevision)}, e a proposta inicial do sistema. Um ataque já registrado pode ser avaliado por uma aprovação anterior, identificada nos seus detalhes.</p></div></details>`;
   }
+  function sourceWarning(plan){
+    const partial=(plan.initial?.warnings||[]).some(w=>typeof w==='string'&&/^(history_unavailable|player_history_|player_war_unavailable)/.test(w));
+    return partial?`<div class="cwl-notice is-warning" role="status">${icon('alert')}<p><strong>Histórico parcial.</strong> Algumas consultas atingiram o limite ou não responderam. Os scores usam os registros disponíveis; confira a amostra de cada jogador.</p></div>`:'';
+  }
   function planPanel(state) {
     const plan = state.plan;
     if (!plan && (state.loading || state.error)) return '';
-    if (!plan) return state.rounds?.length ? empty('Escolha um confronto para ver o plano', 'A proposta é calculada e salva na primeira consulta. Depois, os resultados são acompanhados sem redistribuir os alvos.') : empty('Nenhum confronto encontrado nesta edição', 'Escolha outra edição. A fonte pode ainda não ter registrado as guerras deste mês.');
+    if (!plan) return state.rounds?.length ? empty('A liderança ainda não preparou este plano', 'Depois de preparado e aprovado, o plano ficará disponível para todos consultarem.',canEdit(state)&&state.selectedStart?button('prepare','Preparar plano neste aparelho'):authControl(state)) : empty('Nenhum confronto encontrado nesta edição', 'Escolha outra edição. A fonte pode ainda não ter registrado as guerras deste mês.');
     const assignments = plan.effective?.assignments || plan.current?.assignments || plan.initial?.assignments || [];
     const participants = plan.initial?.participants || assignments.map(m => ({ tag: m.attackerTag, name: m.attackerName }));
     const names = new Map();
     const targetMetrics = new Map();
-    for (const p of plan.initial?.opponentParticipants || []) names.set(p.tag, p.name);
+    for (const p of plan.initial?.opponentParticipants || []) {names.set(p.tag,p.name);if(known(p.defenseScore))targetMetrics.set(p.tag,p);}
     for (const m of [...(plan.initial?.assignments || []), ...(plan.current?.assignments || []), ...assignments, ...(plan.outcomes || []).flatMap(h => h.mission ? [h.mission] : [])]) {
       names.set(m.attackerTag, m.attackerName); names.set(m.defenderTag, m.defenderName);
       if (m.defenderTag && !targetMetrics.has(m.defenderTag)) targetMetrics.set(m.defenderTag, m);
@@ -187,7 +201,7 @@
     const visible = participants.filter(p => {
       const hit = plan.outcomes?.find(h => h.attackerTag === p.tag);
       const mission = hit && !plan.retrospective ? hit.mission : assignments.find(m => m.attackerTag === p.tag);
-      const draft = state.demo ? plan.current?.assignments?.find(m => m.attackerTag === p.tag) : null;
+      const draft = canEdit(state) ? plan.current?.assignments?.find(m => m.attackerTag === p.tag) : null;
       return !query || [p.name, p.tag, mission?.defenderName, mission?.defenderTag, draft?.defenderName, draft?.defenderTag, hit?.defenderTag, names.get(hit?.defenderTag)].some(v => String(v || '').toLocaleLowerCase('pt-BR').includes(query));
     });
     const simulated = state.demo && plan.demoLocalAppliedOnce;
@@ -195,7 +209,7 @@
     const notice = plan.retrospective ? 'Análise histórica: resultados reais, sem missões retroativas.' : simulated ? plan.current?.approved === false ? `Simulação v${esc(plan.effective?.revision)} ativa; novas alterações continuam em rascunho local.` : `Simulação v${esc(plan.effective?.revision)} ativa somente neste exemplo. Resultados e mérito não foram recalculados.` : plan.effective ? plan.current?.approved === false ? `Valem as missões aprovadas v${esc(plan.effective.revision)}. Há alterações ainda em rascunho.` : `Missões aprovadas v${esc(plan.effective.revision)}. As ordens de cada ataque ficam registradas.` : 'Proposta de alvos. Aguardando aprovação da líder.';
     const metricsNeedRefresh = state.demo && plan.demoLocalAppliedOnce;
     const tracking = plan.trackingWarning ? `<div class="cwl-notice is-warning" role="status">${icon('alert')}<details data-cwl-detail="tracking-warning"><summary>Atualização indisponível. Exibindo os últimos dados salvos.</summary><p>${esc(plan.trackingWarning)}</p></details></div>` : '';
-    return `<div class="cwl-notice ${!plan.retrospective && !plan.effective ? 'is-warning' : 'is-info'}">${icon(plan.retrospective || !plan.effective ? 'alert' : 'check')}<p>${notice}</p></div>${state.demo ? demoPlanControls(plan, state) : ''}${tracking}<div class="cwl-overview"><div class="cwl-metric"><span>Confronto</span><strong>${esc(name)}</strong><small>${esc(date(plan.warStart, true))} · ${esc(stateNames[plan.warState] || '')}</small></div><div class="cwl-metric"><span>Ataques usados</span><strong>${number(plan.metrics?.attacksUsed, 0)} <small>/ ${participants.length}</small></strong></div><div class="cwl-metric"><span>Missões cumpridas</span><strong>${plan.retrospective || !plan.effective || metricsNeedRefresh ? '—' : `${number(plan.metrics?.fulfilled, 0)}`} <small>${metricsNeedRefresh ? 'simulação sem recálculo' : plan.retrospective || !plan.effective ? 'sem avaliação' : 'com missão atribuída'}</small></strong></div><div class="cwl-metric"><span>Estrelas acrescentadas</span><strong>${stars(plan.metrics?.addedStars)}</strong></div></div><section class="cwl-surface" aria-label="${esc(label)}"><div class="cwl-surface-heading"><div><h3>${esc(label)}</h3><p>${plan.retrospective ? 'Compare os resultados sem inventar missões passadas.' : 'Atacante, alvo e meta no mesmo lugar.'}</p></div><span class="cwl-muted">${simulated ? `Simulação v${esc(plan.effective?.revision)}` : plan.effective ? `Aprovação v${esc(plan.effective.revision)}` : `Proposta v${esc(plan.currentRevision || 1)}`}</span></div><label class="cwl-search" for="cwl-query">${icon('search')}<input id="cwl-query" type="search" placeholder="Buscar atacante ou alvo" value="${esc(state.query || '')}" autocomplete="off" aria-label="Buscar atacante ou alvo"></label><div class="cwl-mission-list">${visible.length ? visible.map(p => missionRow(p, plan, assignments, names, state, targetMetrics)).join('') : empty('Nenhum jogador encontrado', 'Tente outro nome ou tag.')}</div></section>${state.demo && plan.demoLocalAppliedOnce ? '' : adoptionDetail(plan)}${guide(state)}<p class="cwl-footnote">${plan.retrospective ? 'Análise histórica' : 'Um plano salvo por confronto'} · Consulta de resultados em ${esc(date(plan.observedAt, true))}. Os dados da fonte podem apresentar atraso.</p>`;
+    return `<div class="cwl-notice ${!plan.retrospective && !plan.effective ? 'is-warning' : 'is-info'}">${icon(plan.retrospective || !plan.effective ? 'alert' : 'check')}<p>${notice}</p></div>${canEdit(state) ? demoPlanControls(plan, state) : ''}${tracking}${sourceWarning(plan)}<div class="cwl-overview"><div class="cwl-metric"><span>Confronto</span><strong>${esc(name)}</strong><small>${esc(date(plan.warStart, true))} · ${esc(stateNames[plan.warState] || '')}</small></div><div class="cwl-metric"><span>Ataques usados</span><strong>${number(plan.metrics?.attacksUsed, 0)} <small>/ ${participants.length}</small></strong></div><div class="cwl-metric"><span>Missões cumpridas</span><strong>${plan.retrospective || !plan.effective || metricsNeedRefresh ? '—' : `${number(plan.metrics?.fulfilled, 0)}`} <small>${metricsNeedRefresh ? 'simulação sem recálculo' : plan.retrospective || !plan.effective ? 'sem avaliação' : 'com missão atribuída'}</small></strong></div><div class="cwl-metric"><span>Estrelas acrescentadas</span><strong>${stars(plan.metrics?.addedStars)}</strong></div></div><section class="cwl-surface" aria-label="${esc(label)}"><div class="cwl-surface-heading"><div><h3>${esc(label)}</h3><p>${plan.retrospective ? 'Compare os resultados sem inventar missões passadas.' : 'Atacante, alvo e meta no mesmo lugar.'}</p></div><span class="cwl-muted">${simulated ? `Simulação v${esc(plan.effective?.revision)}` : plan.effective ? `Aprovação v${esc(plan.effective.revision)}` : `Proposta v${esc(plan.currentRevision || 1)}`}</span></div><label class="cwl-search" for="cwl-query">${icon('search')}<input id="cwl-query" type="search" placeholder="Buscar atacante ou alvo" value="${esc(state.query || '')}" autocomplete="off" aria-label="Buscar atacante ou alvo"></label><div class="cwl-mission-list">${visible.length ? visible.map(p => missionRow(p, plan, assignments, names, state, targetMetrics)).join('') : empty('Nenhum jogador encontrado', 'Tente outro nome ou tag.')}</div></section>${state.demo && plan.demoLocalAppliedOnce ? '' : adoptionDetail(plan)}${guide(state)}<p class="cwl-footnote">${plan.retrospective ? 'Análise histórica' : 'Um plano salvo por confronto'} · Consulta de resultados em ${esc(date(plan.observedAt, true))}. Os dados da fonte podem apresentar atraso.</p>`;
   }
   function opportunityDetail(o, index) {
     const [label, tone] = meritStatuses[o.status] || ['Sem avaliação', ''];
@@ -231,7 +245,7 @@
   function render(state = {}) {
     const activeTab = state.activeTab === 'ranking' ? 'ranking' : 'plan';
     const loading = Boolean(state.loading);
-    return `<div class="cwl-shell${state.demo ? ' is-demo' : ''}">${header(state)}${state.demo ? '<div class="cwl-notice is-info">'+icon('flag')+'<p><strong>Exemplo ilustrativo.</strong> Alvos, notas e ranking não são reais. Alterações ficam nesta demonstração e não recalculam os resultados.</p></div>' : ''}${tabs(activeTab)}${activeTab === 'plan' ? roundsList(state) : ''}<div id="cwl-panel" role="tabpanel" aria-labelledby="cwl-tab-${activeTab}" ${loading ? 'aria-busy="true"' : ''}>${loading ? `<div class="cwl-loading" role="status" aria-live="polite">${icon('refresh')}<div><strong>${esc(typeof state.loading === 'string' ? state.loading : 'Consultando a CWL…')}</strong><p>Os dados aparecem conforme cada consulta termina.</p></div></div>` : ''}${state.error ? `<div class="cwl-notice is-warning" role="alert">${icon('alert')}<div><strong>Não foi possível concluir esta consulta</strong><p>${state.plan || state.ranking ? 'Dados anteriores preservados. ' : ''}${esc(state.error)}</p></div>${button('retry', 'Tentar novamente')}</div>` : ''}${state.syncWarning ? `<div class="cwl-notice is-warning" role="status">${icon('alert')}<p>${esc(state.syncWarning)}</p></div>` : ''}${activeTab === 'ranking' ? rankingPanel(state) : planPanel(state)}</div>${state.demoCancelConfirm ? demoCancelDialog() : ''}</div>`;
+    return `<div class="cwl-shell${state.demo ? ' is-demo' : ''}">${header(state)}${state.authError&&!state.loginOpen?`<p class="cwl-auth-error" role="alert">${esc(state.authError)}</p>`:''}${state.demo ? '<div class="cwl-notice is-info">'+icon('flag')+'<p><strong>Exemplo ilustrativo.</strong> Alvos, notas e ranking não são reais. Alterações ficam nesta demonstração e não recalculam os resultados.</p></div>' : ''}${tabs(activeTab)}${activeTab === 'plan' ? roundsList(state) : ''}<div id="cwl-panel" role="tabpanel" aria-labelledby="cwl-tab-${activeTab}" ${loading ? 'aria-busy="true"' : ''}>${loading ? `<div class="cwl-loading" role="status" aria-live="polite">${icon('refresh')}<div><strong>${esc(typeof state.loading === 'string' ? state.loading : 'Consultando a CWL…')}</strong><p>Os dados aparecem conforme cada consulta termina.</p></div></div>` : ''}${state.error ? `<div class="cwl-notice is-warning" role="alert">${icon('alert')}<div><strong>Não foi possível concluir esta consulta</strong><p>${state.plan || state.ranking ? 'Dados anteriores preservados. ' : ''}${esc(state.error)}</p></div>${button('retry', 'Tentar novamente')}</div>` : ''}${state.syncWarning ? `<div class="cwl-notice is-warning" role="status">${icon('alert')}<p>${esc(state.syncWarning)}</p></div>` : ''}${activeTab === 'ranking' ? rankingPanel(state) : planPanel(state)}</div>${state.demoCancelConfirm ? demoCancelDialog() : ''}${state.loginOpen ? loginDialog(state) : ''}</div>`;
   }
   root.CwlUI = Object.freeze({ render });
 })(window);

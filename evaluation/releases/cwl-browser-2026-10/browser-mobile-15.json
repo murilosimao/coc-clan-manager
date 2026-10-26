@@ -1,0 +1,28 @@
+{
+  "baselineCommit": "b3f1f14",
+  "cpuRate": 4,
+  "scoreHash": "3ad0bae046cfe1f38004dd6bc4e06d0579ac3452f28e0e23557e095d36837057",
+  "tolerance": 1e-9,
+  "maxAbsoluteDifference": 1.4210854715202004e-14,
+  "scope": "selected_case",
+  "cases": 1,
+  "observedAttacks": 15,
+  "previousRps": 0.0088504735263984,
+  "historicalCohortRps": 0.07455368441421246,
+  "browserRps": 0.008850473526398405,
+  "checks": [
+    {
+      "clan": "2G8QCR92V",
+      "start": "20261003T162626.000Z",
+      "teamSize": 15,
+      "emptyHistory": false,
+      "sourceHash": "9eb077ac705374eda24ddd72badd6683118af02583a40d0a85fc7ec2e186f536",
+      "identical": true,
+      "legacyTargetChanges": 0,
+      "legacyExpectedStarsDelta": 0,
+      "computeMs": 722.8000000119209,
+      "archiveBytes": 1343672,
+      "mainThreadTicks": 92
+    }
+  ]
+}

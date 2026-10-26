@@ -17,7 +17,11 @@ const canonical = value => JSON.stringify(value && typeof value === 'object'
 export async function ensureRankingPolicy(sql, tag, season, now) {
   await sql`insert into cwl.ranking_policies(clan_tag,season,policy,created_at)
     values(${tag},${season},${sql.json(RANKING_POLICY)},${new Date(now).toISOString()}) on conflict do nothing`;
+  return readRankingPolicy(sql,tag,season);
+}
+export async function readRankingPolicy(sql,tag,season){
   const [row] = await sql`select policy,created_at from cwl.ranking_policies where clan_tag=${tag} and season=${season}`;
+  if(!row)return {...RANKING_POLICY,persistedAt:null};
   if (canonical(row.policy) !== canonical(RANKING_POLICY)) throw new CwlError(503, 'Versão da política de mérito não suportada.', 'ranking_policy_unsupported');
   return { ...row.policy, persistedAt: row.created_at };
 }

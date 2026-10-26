@@ -1,7 +1,10 @@
 import { lockRound, loadPlan } from './database.js';
 import { planWar, validateWar, validateAssignments } from './planner.js';
 import { CwlError, requireCondition, timestamp } from './errors.js';
-import { ensureRankingPolicy, rankSeason } from './ranking.js';
+import { ensureRankingPolicy, readRankingPolicy, rankSeason } from './ranking.js';
+import { validateBrowserPlan,warFingerprint } from './browser-plan.js';
+import { decodeArchive } from './archive.js';
+import { WarScores } from './scoring.js';
 
 const cleanMission = ({ probabilities, goalSupport, eta, note, ...rest }) => rest;
 const iso = value => new Date(value).toISOString();
@@ -34,6 +37,7 @@ export class CwlService {
       await tx`insert into cwl.rounds(id,clan_tag,start_time,season,opponent_tag,war_state,end_at,created_at)
         values(${roundId},${tag},${start},${season},${result.war.result.clans[result.war.result.opponentSide].tag},${raw.state},${iso(timestamp(raw.endTime))},${now})`;
       const initial = { assignments: result.assignments, matchups: result.matchups, expectedStars: result.expectedStars,
+        assignmentPrecision:result.assignmentPrecision,
         expectedGain: result.expectedGain, participants: result.participants,
         mirrorExpectedStars: result.mirrorExpectedStars, warnings: [...result.warnings, ...training.warnings], computeMs };
       await tx`insert into cwl.plans(id,round_id,current_revision,retrospective,initial_plan,score_snapshot,source_snapshot,config,planner_version,created_at)
@@ -49,12 +53,46 @@ export class CwlService {
     return { ...(await this.read(tag, start)), created, id };
   }
 
-  async read(tag, start, audit = false) {
-    return this.sql.begin('isolation level repeatable read read only', tx => this.readSnapshot(tx, tag, start, audit));
+  async read(tag, start, audit = false, snapshots = audit) {
+    return this.sql.begin('isolation level repeatable read read only', tx => this.readSnapshot(tx, tag, start, audit, snapshots));
   }
 
-  async readSnapshot(sql, tag, start, audit = false) {
-    const row = await loadPlan(sql, tag, start);
+  async initializeComputed(tag,start,payload,archive,actor) {
+    let created=false;
+    const id=await this.sql.begin(async tx=>{
+      await lockRound(tx,tag,start);
+      const existing=await loadPlan(tx,tag,start);if(existing)return existing.id;
+      if(typeof payload==='function'){const input=await payload();payload=input.payload;archive=input.bytes;}
+      const submitted=validateBrowserPlan(payload,tag,start,this.clock());
+      const raw=await this.provider.war(tag,start),fresh=validateWar(raw,tag);
+      requireCondition(warFingerprint(fresh)===warFingerprint(submitted.war),409,'A guerra mudou durante o cálculo. Prepare o plano novamente.','war_changed_recalculate');
+      const result=validateBrowserPlan({...payload,raw},tag,start,this.clock());
+      const now=iso(this.clock()),roundId=crypto.randomUUID(),planId=crypto.randomUUID();
+      const prep=timestamp(raw.preparationStartTime);requireCondition(Number.isFinite(prep),422,'Temporada CWL não identificada.');
+      const season=raw.season||iso(prep).slice(0,7);await ensureRankingPolicy(tx,tag,season,this.clock());
+      await tx`insert into cwl.rounds(id,clan_tag,start_time,season,opponent_tag,war_state,end_at,created_at)
+        values(${roundId},${tag},${start},${season},${fresh.result.clans[fresh.result.opponentSide].tag},${raw.state},${iso(timestamp(raw.endTime))},${now})`;
+      const initial={assignments:result.assignments,matchups:result.matchups,expectedStars:result.expectedStars,expectedGain:result.expectedGain,
+        assignmentPrecision:result.assignmentPrecision,
+        participants:result.participants,mirrorExpectedStars:result.mirrorExpectedStars,warnings:[...result.warnings,...payload.training.warnings],
+        computeMs:payload.computeMs,computedBy:'browser',validation:'editor_authenticated_sources_and_formula_checked_without_refitting'};
+      const current=new Set([...fresh.roster,...fresh.opponentRoster].map(p=>WarScores.playerKey(p)));
+      const compact={...result.model,events:[],rejected:[],players:result.model.players.filter(p=>current.has(p.key)),archiveId:planId};
+      const source={raw,...payload.training,history:undefined,archiveId:planId,archiveFormat:'cwl-gzip-v1'};
+      await tx`insert into cwl.plans(id,round_id,current_revision,retrospective,initial_plan,score_snapshot,source_snapshot,config,planner_version,created_at)
+        values(${planId},${roundId},1,${raw.state==='warEnded'},${tx.json(initial)},${tx.json(compact)},${tx.json(source)},${tx.json(result.config)},${result.version},${now})`;
+      const sha=[...new Uint8Array(await crypto.subtle.digest('SHA-256',archive))].map(v=>v.toString(16).padStart(2,'0')).join('');
+      await tx`insert into cwl.plan_archives(plan_id,format,payload,sha256,submitted_by,created_at)
+        values(${planId},'cwl-gzip-v1',${archive},${sha},${actor},${now})`;
+      await tx`insert into cwl.revisions(plan_id,revision,state,kind,assignments,actor,reason,created_at)
+        values(${planId},1,'draft','initial',${tx.json(result.assignments)},${actor},'Browser proposal; awaiting leadership approval',${now})`;
+      await this.observe(tx,await loadPlan(tx,tag,start),raw,true);created=true;return planId;
+    });
+    return {...await this.read(tag,start),id,created};
+  }
+
+  async readSnapshot(sql, tag, start, audit = false, snapshots = audit) {
+    const row = await loadPlan(sql, tag, start, snapshots);
     if (!row) throw new CwlError(404, 'Plano não encontrado.', 'plan_not_found');
     const revisions = await sql`select * from cwl.revisions where plan_id=${row.id} order by revision`;
     const current = revisions.at(-1);
@@ -108,8 +146,10 @@ export class CwlService {
       plannerVersion: row.planner_version, scoreVersion: row.score_snapshot.version, config: row.config,
       createdAt: row.created_at, observedAt: row.last_observed_at, currentRevision: current.revision,
       initial: { assignments: original.map(cleanMission), expectedStars: row.initial_plan.expectedStars,
+        assignmentPrecision:row.initial_plan.assignmentPrecision??null,
         expectedGain: row.initial_plan.expectedGain, participants: row.initial_plan.participants,
-        opponentParticipants: (row.initial_plan.matchups[0] || []).map(m => ({ tag: m.defenderTag, name: m.defenderName, th: m.defenderCV })),
+        opponentParticipants: (row.initial_plan.matchups[0] || []).map(m => ({ tag: m.defenderTag, name: m.defenderName, th: m.defenderCV,
+          defenseScore:m.defenseScore,defenseEvidence:m.defenseEvidence,defenseCount:m.defenseCount,defenseWeight:m.defenseWeight })),
         mirrorExpectedStars: row.initial_plan.mirrorExpectedStars, computeMs: row.initial_plan.computeMs, warnings: row.initial_plan.warnings },
       current: { assignments: current.assignments.map(cleanMission), approved: current.state === 'approved' },
       duplicateTargets: [...new Set(current.assignments.map(m => m.defenderTag))].filter(t => current.assignments.filter(m => m.defenderTag === t).length > 1),
@@ -127,8 +167,16 @@ export class CwlService {
         pending: row.war_state !== 'warEnded' ? row.initial_plan.participants.filter(p => !used.has(p.tag)).length : 0,
         observations: observations[0].n },
     };
-    if (audit) Object.assign(response, { scoreSnapshot: row.score_snapshot, sourceSnapshot: row.source_snapshot,
-      matchups: row.initial_plan.matchups, reviews });
+    if (audit) Object.assign(response, { matchups: row.initial_plan.matchups, reviews });
+    if (snapshots) {
+      Object.assign(response,{scoreSnapshot:row.score_snapshot,sourceSnapshot:row.source_snapshot});
+      if(row.source_snapshot.archiveId){
+        const [archive]=await sql`select payload,sha256,submitted_by from cwl.plan_archives where plan_id=${row.id}`;
+        requireCondition(archive,503,'Snapshot de auditoria indisponível.');
+        const saved=await decodeArchive(archive.payload);
+        response.scoreSnapshot=saved.model;response.sourceSnapshot={raw:saved.raw,...saved.training,archive:{sha256:archive.sha256,submittedBy:archive.submitted_by}};
+      }
+    }
     return response;
   }
 
@@ -228,14 +276,14 @@ export class CwlService {
   }
 
   async seasonAnalytics(tag, season) {
-    const policy = await ensureRankingPolicy(this.sql, tag, season, this.clock());
+    const policy = await readRankingPolicy(this.sql,tag,season);
     return this.sql.begin('isolation level repeatable read read only', tx => this.seasonSnapshot(tx, tag, season, policy));
   }
 
   async seasonSnapshot(sql, tag, season, policy) {
     const rounds = await sql`select start_time from cwl.rounds where clan_tag=${tag} and season=${season} order by start_time`;
     const plans = [];
-    for (const r of rounds) plans.push(await this.readSnapshot(sql, tag, r.start_time, true));
+    for (const r of rounds) plans.push(await this.readSnapshot(sql, tag, r.start_time, true, false));
     const players = new Map();
     for (const plan of plans) for (const m of plan.initial.participants) {
       if (!players.has(m.tag)) players.set(m.tag, { tag: m.tag, name: m.name, appearances: 0, attacks: 0, stars: 0,
@@ -261,7 +309,7 @@ export class CwlService {
     const rounds = await this.sql`select start_time from cwl.rounds where clan_tag=${tag} and season=${season} order by start_time`;
     const rows = [];
     for (const r of rounds) {
-      const plan = await this.read(tag, r.start_time, true);
+      const plan = await this.read(tag, r.start_time, true, false);
       for (const hit of plan.outcomes) {
         const initial = plan.initial.assignments.find(m => m.attackerTag === hit.attackerTag);
         const matchup = plan.matchups.flat().find(m => m.attackerTag === hit.attackerTag && m.defenderTag === hit.defenderTag);

@@ -1,5 +1,7 @@
 import { handleCwl } from './cwl/router.js';
 import { CwlError } from './cwl/errors.js';
+import { sourceProxy } from './cwl/source-proxy.js';
+import { bridgeCwl } from './cwl/bridge.js';
 const PROFILE_API = 'https://clashapi.colinschmale.dev';
 const HISTORY_API = 'https://api.clashk.ing';
 const TTL = 60;
@@ -324,7 +326,14 @@ export function createWorker(cwlHandler = handleCwl) { return {
     if (url.pathname === '/api/audit' && (!origin || !allowedOrigin)) {
       return logApiRequest(request, json({ error: 'Origem não permitida.' }, 403), startedAt);
     }
-    try { return logApiRequest(request, cors(await api(request, ctx, env, cwlHandler)), startedAt); }
+    try {
+      if(url.pathname.startsWith('/api/cwl/')&&url.pathname!=='/api/cwl/source'&&env.CWL_REQUIRE_BRIDGE==='true'&&!env.CWL_BACKEND_URL)
+        throw new CwlError(503,'A CWL ainda não foi configurada para publicação.','cwl_backend_not_configured');
+      const result = url.pathname==='/api/cwl/source' ? await sourceProxy(request)
+        : env.CWL_BACKEND_URL&&url.pathname.startsWith('/api/cwl/') ? await bridgeCwl(request,env)
+        : await api(request,ctx,env,cwlHandler);
+      return logApiRequest(request,cors(result),startedAt);
+    }
     catch (error) {
       if (error instanceof APIError || error instanceof CwlError) return logApiRequest(request, cors(json({ error: error.message, ...(error.code ? { code: error.code } : {}) }, error.status)), startedAt);
       // Never return stack traces, environment values, or upstream response bodies.

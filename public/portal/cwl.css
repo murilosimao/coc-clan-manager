@@ -334,3 +334,8 @@ body[data-view="cwl"] .clan-heading .refresh-button { display:none; }
 @media (prefers-reduced-motion:reduce) {
   .cwl-shell *,.cwl-shell *::before { animation:none!important; transition:none!important; }
 }
+.cwl-auth-role { color: var(--muted); font-size: .8rem; align-self: center; }
+#cwl-login-form { display: grid; gap: .65rem; text-align: left; }
+#cwl-login-form input { width: 100%; min-width: 0; padding: .8rem; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; }
+#cwl-login-form label { color: var(--muted); font-size: .85rem; }
+.cwl-auth-error { color: #f0a59b; }

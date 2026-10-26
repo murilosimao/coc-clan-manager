@@ -1,0 +1,41 @@
+{
+  "ok": true,
+  "checkedAt": "2026-10-26T01:41:57.842Z",
+  "certificateVerified": true,
+  "tls": {
+    "ssl": true,
+    "protocol": "TLSv1.3"
+  },
+  "tables": {
+    "total": 9,
+    "with_rls": 9
+  },
+  "publicRoles": [
+    {
+      "role": "anon",
+      "reachable_tables": 0
+    },
+    {
+      "role": "authenticated",
+      "reachable_tables": 0
+    },
+    {
+      "role": "service_role",
+      "reachable_tables": 0
+    }
+  ],
+  "runtimeRole": {
+    "rolsuper": false,
+    "rolcreatedb": false,
+    "rolcreaterole": false,
+    "rolbypassrls": false
+  },
+  "permissions": {
+    "schema_create": false,
+    "change_score_snapshot": false,
+    "delete_archive": false,
+    "truncate_attacks": false,
+    "memberships": 0
+  },
+  "protectedWriteProbesDenied": true
+}

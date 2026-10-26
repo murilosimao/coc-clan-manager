@@ -9,7 +9,7 @@ O visual mantém a identidade existente. A lista vira uma composição vertical 
 
 ## Dados e estados
 
-A consulta é iniciada somente ao abrir a aba CWL. As guerras da edição aparecem primeiro; o plano selecionado é mostrado assim que sua requisição termina, enquanto os resultados da edição ainda podem estar carregando. A primeira consulta a um plano pode calculá-lo e persistir no backend. Reabrir/atualizar consulta o registro existente, sem redistribuir os alvos.
+A consulta é iniciada somente ao abrir a aba CWL. As guerras da edição aparecem primeiro; o plano selecionado é mostrado assim que sua requisição termina, enquanto os resultados da edição ainda podem estar carregando. Visitantes consultam somente planos salvos. Quando falta um plano, líder ou colíder autenticado pode usar **Preparar plano neste aparelho**. O ajuste ocorre em Web Worker, com progresso das fontes, cálculo e gravação. Reabrir/atualizar consulta o registro existente, sem redistribuir os alvos.
 
 O frontend lê `/analytics` depois do plano. Se um dia **já acompanhado** ainda estiver pendente no banco e a fonte informar seu encerramento ou seu prazo tiver passado, consulta o plano daquele dia para atualizar os resultados. O estado e eventuais faltas continuam dependendo da confirmação da fonte: passar do horário não fabrica um encerramento. Guerras históricas ainda não acompanhadas não são criadas em lote. Falhas individuais preservam os registros e aparecem em aviso.
 
@@ -25,7 +25,9 @@ As explicações dos scores incluem contagem, peso e tamanho efetivo da amostra;
 
 **Copiar TSV** no computador e **Copiar plano/ranking** no celular exportam a visão e o filtro atuais, em colunas para Excel. Se a cópia não estiver disponível, o arquivo TSV pode ser baixado como alternativa automática. Campos textuais são tratados para não virarem fórmulas de planilha.
 
-Os dados reais continuam em modo de consulta. Na demonstração, **Editar** habilita os controles inline dos ataques pendentes; alvo duplicado recebe um aviso com o nome de quem compartilha a atribuição, sem troca automática. A meta é escolhida num menu de uma a três estrelas. O botão **Editar** fica no painel superior em computadores/tablets e no dock inferior em celulares. Durante a edição, **Salvar** e **Cancelar** ficam fixos no canto inferior direito durante a rolagem, acima da navegação do celular. Cancelar pede confirmação e restaura o rascunho ao estado anterior à edição. Ataques concluídos ficam bloqueados; a simulação não chama a API, não grava no banco e não recalcula scores, resultados ou ranking. A interface não pede nem armazena chaves. Aprovação real continua nas rotas autenticadas do backend.
+Nos dados reais, **Entrar como liderança** abre o login; em GitHub Pages, leva à aplicação no domínio do Worker para usar cookies de primeira parte. Apenas UIDs autorizados para o clã veem **Editar** e **Preparar plano**. **Salvar** grava e aprova uma nova revisão no backend; visitantes continuam em consulta. Um erro de versão ou sessão preserva o rascunho para o editor revisar, e respostas antigas de outros clãs/dias não substituem a tela atual. Senhas são enviadas somente no login e não ficam no estado persistido; tokens ficam em cookies HttpOnly.
+
+Na demonstração, a edição permanece inteiramente local. Tanto nela quanto no acesso real, **Editar** habilita os controles inline dos ataques pendentes; alvo duplicado recebe um aviso com o nome de quem compartilha a atribuição, sem troca automática. A meta é escolhida num menu de uma a três estrelas. O botão **Editar** fica no painel superior em computadores/tablets e no dock inferior em celulares. Durante a edição, **Salvar** e **Cancelar** ficam fixos no canto inferior direito durante a rolagem. Cancelar pede confirmação e restaura o rascunho. Ataques concluídos ficam bloqueados. O navegador não recebe chaves da API nem credenciais do banco.
 
 ## Revisão local
 
@@ -43,4 +45,4 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-Os testes de navegador usam rotas controladas para os cenários funcionais e verificam layout em 320, 390, 800, 1024 e 1440 px, navegação, cópia, missões atribuídas, carregamento parcial, erros e respostas fora de ordem. Capturas e relatório ficam em `.wrangler/cwl-ui-review/`, fora do Git. `CWL_UI_BASE_URL` permite outra porta de preview, sempre em loopback.
+Os testes de navegador usam rotas controladas e verificam layout em 320, 390, 768, 800, 1024 e 1440 px, navegação, cópia, missões atribuídas, carregamento parcial, login, edição real autenticada e respostas fora de ordem. O Web Worker real também é comparado ao Node com CPU reduzida e sem histórico. Capturas e relatório ficam em `.wrangler/cwl-ui-review/`, fora do Git. `CWL_UI_BASE_URL` permite outra porta de preview, sempre em loopback. `npm run test:parity` usa os snapshots locais congelados para comparar 30 casos reais com a versão melhorada `b3f1f14`.

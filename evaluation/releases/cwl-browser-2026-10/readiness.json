@@ -1,0 +1,78 @@
+{
+  "checkedAt": "2026-10-26T01:44:19.715566+00:00",
+  "status": "local_checks_passed_publication_pending",
+  "formulaBaselineCommit": "b3f1f14",
+  "plannerVersion": "cwl-assignment-v2.1",
+  "checks": {
+    "backend": {
+      "passed": 69,
+      "failed": 0,
+      "database": "local disposable PostgreSQL"
+    },
+    "browserUi": {
+      "passed": 21,
+      "failed": 0
+    },
+    "realBrowserWorker": {
+      "cases": 2,
+      "passed": true,
+      "mobileCpuRate": 4
+    },
+    "historicalParity": {
+      "cases": 30,
+      "usefulAttacks": 304,
+      "passed": true
+    },
+    "mobileHistoricalParity": {
+      "teamSizes": [
+        15,
+        30
+      ],
+      "widthPx": 390,
+      "cpuRate": 4,
+      "passed": true
+    },
+    "scoreRegression": true,
+    "workerDryRun": true,
+    "supabaseBundle": true,
+    "denoCheck": true,
+    "npmAuditVulnerabilities": 0,
+    "frozenBaselineFiles": 283,
+    "changedBaselineFiles": 0,
+    "secretScan": {
+      "versionableFiles": 133,
+      "secretMatches": 0,
+      "privateRepoFilesIgnored": true,
+      "privateFileMode": "600"
+    }
+  },
+  "supabase": {
+    "runtimePoolerVerified": true,
+    "certificateAndHostnameVerified": true,
+    "sslEnforcement": "user_confirmed",
+    "accountsConfirmed": 2,
+    "editorRoles": [
+      "leader",
+      "coLeader"
+    ],
+    "dataApiDisabled": "user_configuration_not_independently_verified",
+    "signupDisabled": "requested_not_independently_verified",
+    "deployTokenReadStatus": 200,
+    "existingFunctionCount": 0,
+    "deployTokenWritesNotExercised": true
+  },
+  "publication": {
+    "functionPublished": false,
+    "workerPublished": false,
+    "pagesPublished": false,
+    "remoteCiRun": false,
+    "automaticDeployFlagConfigured": false
+  },
+  "remaining": [
+    "Review local change and authorize publication",
+    "Publish private function and configure transport secrets before frontend",
+    "Verify direct function denies access and both real account logins after publication",
+    "Measure hosted CPU, memory and request duration",
+    "Confirm public signup setting in Supabase dashboard"
+  ]
+}

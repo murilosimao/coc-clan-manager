@@ -700,6 +700,8 @@
   window.ScoreUI.init(() => { if (state.view === 'war') renderWar(); });
   loadSettings();
   const params = new URLSearchParams(location.search);
+  const requestedClan=String(params.get('clan')||'').replace(/^#/,'').toUpperCase();
+  if(/^[0289PYLQGRJCUV]{3,15}$/.test(requestedClan)){state.clanTag=requestedClan;$('#clan-input').value=requestedClan;}
   window.CwlApp.init({ clanTag: params.get('demo') === '1' ? E.DEFAULT_CLAN : state.clanTag, demo: params.get('demo') === '1',
     activeTab: params.get('tab'), onChange: () => { updateCopyControl(); if (state.view === 'cwl') renderHeader(); }, exportData: copySelection });
   bindEvents(); render(); setView(params.get('view') === 'cwl' ? 'cwl' : 'team', false); audit('page_view');

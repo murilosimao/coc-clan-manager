@@ -1,0 +1,41 @@
+{
+  "createdAt": "2026-10-26T01:45:52.409450+00:00",
+  "formulaReferenceCommit": "b3f1f14",
+  "files": {
+    "evaluation/releases/cwl-browser-2026-10/README.md": "42cf3272b7feafeb840721b98f29d69d04bd4564099d67d8c113f1c96afb2a85",
+    "evaluation/releases/cwl-browser-2026-10/browser-mobile-15.json": "cddefcc1cf29ca6c50752f8121dbd163b1bfdfc139500056f592ca23e239ad3f",
+    "evaluation/releases/cwl-browser-2026-10/browser-mobile-30.json": "30477385eb55310aefa1018aaaec86bf3308cd8120a9cd59ca139cff85bb45b8",
+    "evaluation/releases/cwl-browser-2026-10/browser-parity.json": "550612f7a0e2f80d29a58da6bc51e85ba40405d08697c7f203973f083a88c8ab",
+    "evaluation/releases/cwl-browser-2026-10/readiness.json": "f5609d79ddd285f52c53da3be01f72021d556f00591cfca668068a5bd3093f54",
+    "evaluation/releases/cwl-browser-2026-10/save-benchmark.json": "811307231e935969294fc497fd3350e784015e2fdb77415d92c7af32d81b6053",
+    "evaluation/releases/cwl-browser-2026-10/supabase-security.json": "6ce4b8ba1ca7dd3ffee8f83087fe4ff9d00a7be77cbe20f54ac8a5c5ac5e25c6"
+  },
+  "implementation": {
+    "public/portal/war-scores.js": "3ad0bae046cfe1f38004dd6bc4e06d0579ac3452f28e0e23557e095d36837057",
+    "public/portal/cwl-planner.js": "48ef4c97438b5e20c0e386811ca36ce439fe177521c2bce71354def59def6bba",
+    "public/portal/cwl-provider.js": "db2a48345fa502e1c5ba151176dc616c842b8153286a5f391d4529b3f0a068d1",
+    "public/portal/cwl-compute-worker.js": "14e4fe6294f11354daced5ed6aad60e8a757c5e052bf48dc214056b19955448d",
+    "public/portal/cwl-compute.js": "41972845ff7c74d6080c70e5c9f5a372d42e2c1477ba38161b71302b2100e456",
+    "public/portal/cwl-app.js": "65bfc5904b9a605f9dd9ae1bbec13ab07b4ae2fa2d3d7d765e626f1722616586",
+    "public/portal/cwl-ui.js": "4dbccf8343049d1fa4383088e7cfacda7c92919ca881a205dcb48e4194041ca8",
+    "public/portal/clan-api.js": "87df1772530a84154e4e8b84c7f30f18ead0312bdaf5ba602b8197739e482aba",
+    "src/cwl/auth.js": "c6aceefc75d6cba3475acfc582c2b78004351e6c7e5d506f106ab9bef7042e5e",
+    "src/cwl/edge.js": "777f51659624e234114c8b2354cf07a366ee12370966d61e959bb8680805ac39",
+    "src/cwl/bridge.js": "065c9a6beea5730b66a6698c0a0e56f74e31143944b00ce3a6f6ba4e65c9303d",
+    "src/cwl/archive.js": "0cd8b1c9edb0859b3871b728dce20e250f68567db7e8f4e27082e6664fa3a57f",
+    "src/cwl/browser-plan.js": "77ffbff32ecf8563fbcc03747c441d590663740b141734a3f2944a6229471ea4",
+    "src/cwl/database.js": "8c75a60665489a8d00a2237ba6ae3914a1c866d13bda80cec4d359d9529a5758",
+    "src/cwl/router.js": "2d099591c041bcee13b2944c7584b37b128f5cbff642e561d243f42170cb37f6",
+    "src/cwl/service.js": "c9d91380e15160feb36595486da141bf91ca57065aa9ff0a50073a8af17a1193",
+    "src/cwl/ranking.js": "94aa8b389e42d17e39b4177bdeb0d6fa6393f6b6ea0a42aaea3cdb661e7f9dfc",
+    "src/cwl/source-proxy.js": "84aa66bca84676fbf8719282cddadd2e39e7ddf0c11bde8de8d2aaf46a54d6fd",
+    "src/worker.js": "f078b6740706753aa043b1ff55a797d53ed44746ee0473a8e370b5225d6b4641",
+    "db/security/cwl-runtime.sql": "ef4e66f111e0a233a7aea6e0b0099f3b0b8aeca552de0b89fb75fa28a2041f6c",
+    "db/migrations/003_browser_archives.sql": "5e016cabfb76b5a2b2f3518b0c25b849be01afa76d8aa3739363683993a73bd0",
+    "supabase/functions/cwl/index.ts": "43445166961abee45f481aadb234ad8efe17d0fbf91f083264867414d1f1c156",
+    "supabase/functions/cwl/deno.json": "6e3518bbf5ecfdd2969c5dbdae19f69838f9ab452d0d3940d6d935d83aacb4b2",
+    "supabase/functions/cwl/deno.lock": "dd94feb0e011a92f48354658713d333fa5a29509d34c4109d2b98d94778503f9",
+    "package-lock.json": "cc23d9d7b0dc115a902c8d72e71329af9ab4928e4ad347fdf0320177b4789e26",
+    "wrangler.jsonc": "bf5506304714cb78be656603341a32ad74b98e6c8c6068f6336d8c797866f6b9"
+  }
+}

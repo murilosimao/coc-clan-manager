@@ -1,0 +1,13 @@
+{
+  "runtime": "Deno 2.9.6",
+  "archiveBytes": 1343572,
+  "decodeMs": 73.254375,
+  "validationMs": 116.963875,
+  "totalMs": 190.21825,
+  "heapUsedBytes": 60819192,
+  "rssBytes": 189218816,
+  "events": 5294,
+  "missions": 15,
+  "serverFitExecuted": false,
+  "note": "Local validation benchmark; excludes DB and network time and does not prove hosted quotas."
+}

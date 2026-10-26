@@ -106,7 +106,7 @@ assert.deepEqual(await page.evaluate(() => window.CwlApp.state.plan.effective.as
 await page.locator('#cwl-demo-reset').click();
 record('responsive edit/save/cancel confirms discards, restores the draft and warns duplicate targets without swapping');
 
-let mode = 'normal', calls = [], lastPlanEnded = false;
+let mode = 'normal', calls = [], lastPlanEnded = false, signedIn=false, liveSaved=null, liveSaves=0,initializes=0;
 await page.route('**/api/**', async route => {
   const url = new URL(route.request().url()), path = decodeURIComponent(url.pathname), atStart = mode;
   const fulfill = (json, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(json) });
@@ -117,6 +117,19 @@ await page.route('**/api/**', async route => {
     return fulfill({ tag: '#2G8QCR92V', name: 'Clã de teste', memberList: [], members: 0 });
   }
   calls.push(path);
+  if(path.endsWith('/auth/session'))return fulfill({authenticated:signedIn,...(signedIn?{editor:{id:'10000000-0000-4000-8000-000000000002',role:'coLeader',clanTag:'2G8QCR92V'}}:{})});
+  if(path.endsWith('/auth/login')){signedIn=true;return fulfill({authenticated:true,editor:{id:'10000000-0000-4000-8000-000000000002',role:'coLeader',clanTag:'2G8QCR92V'}});}
+  if(path.endsWith('/auth/logout')){signedIn=false;return fulfill({authenticated:false});}
+  if(path.endsWith('/revisions')){
+    assert.equal(signedIn,true);const body=route.request().postDataJSON();liveSaves++;
+    const start=path.split('/wars/')[1].split('/')[0],source=liveSaved?.warStart===start?liveSaved:data.plans.find(p=>p.warStart===start);
+    assert.equal(body.expectedRevision,source.currentRevision);
+    const plan=structuredClone(source);
+    plan.current.assignments=plan.current.assignments.map(m=>({...m,...body.assignments.find(a=>a.attackerTag===m.attackerTag)}));
+    plan.currentRevision++;plan.effective={revision:plan.currentRevision,assignments:structuredClone(plan.current.assignments)};plan.current.approved=true;liveSaved=plan;
+    return fulfill(plan);
+  }
+  if(path.endsWith('/initialize')){assert(signedIn);assert.equal(route.request().headers()['content-type'],'application/gzip');initializes++;const start=path.split('/wars/')[1].split('/')[0];liveSaved=structuredClone(data.plans.find(p=>p.warStart===start));return fulfill(liveSaved,201);}
   if (path.endsWith('/ranking') || path.endsWith('/analytics')) {
     if (atStart === 'ranking-error') return fulfill({ error: 'Falha controlada ao consultar ranking.' }, 503);
     assert.equal(lastPlanEnded || path.includes('2026-09') || path.includes('2026-08'), true, 'ranking started before plan completed');
@@ -127,11 +140,12 @@ await page.route('**/api/**', async route => {
     return fulfill(path.endsWith('/analytics') ? { rounds, ranking } : ranking);
   }
   if (path.endsWith('/plan')) {
+    if(atStart==='unprepared'&&!liveSaved)return fulfill({code:'plan_not_found',error:'Plano não encontrado.'},404);
     await new Promise(resolve => setTimeout(resolve, atStart === 'slow-plan' ? 250 : 20));
     const start = path.split('/wars/')[1].split('/')[0], plan = structuredClone(data.plans.find(p => p.warStart === start));
     if (atStart === 'old-day-error' && start === data.rounds[1].warStart) return fulfill({ error: 'Fonte temporariamente indisponível' }, 502);
     if (atStart === 'tracking-warning') plan.trackingWarning = 'Resultados não puderam ser atualizados.';
-    lastPlanEnded = true; return fulfill(plan);
+    lastPlanEnded = true; return fulfill(liveSaved?.warStart===start?liveSaved:plan);
   }
   if (path.includes('/seasons/2026-09')) {
     await new Promise(resolve => setTimeout(resolve, 150)); return fulfill({ rounds: [] });
@@ -176,6 +190,36 @@ await done(); await page.waitForTimeout(180);
 assert.equal(await page.evaluate(() => window.CwlApp.state.season), '2026-08');
 assert.equal(await page.evaluate(() => window.CwlApp.state.ranking.entries[0].name), 'Resposta mais recente');
 assert.equal(await page.locator('.cwl-mission-item').count(), 0); record('changing editions discards stale responses and previous plan');
+mode='normal';await page.goto(origin+'/?view=cwl&clan=2G8QCR92V');await done();
+assert.equal(await page.locator('#cwl-demo-edit-toggle').count(),0);
+for(const width of [320,768,1440]){await page.setViewportSize({width,height:950});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),width);}
+await page.setViewportSize({width:390,height:900});
+await page.locator('[data-cwl-action=login]').first().click();
+await page.locator('#cwl-login-email').fill('co@test.invalid');await page.locator('#cwl-login-password').fill('test-only-password');
+await page.screenshot({path:`${dir}/390-login.png`});
+await page.locator('#cwl-login-form button[type=submit]').click();await page.waitForFunction(()=>window.CwlApp.state.editor&&!window.CwlApp.state.loginBusy&&!window.CwlApp.state.loading);await done();
+assert.equal(await page.evaluate(()=>window.CwlApp.state.editor.role),'coLeader');
+await page.locator('#cwl-demo-edit-toggle').click();
+const liveGoal=page.locator('[data-cwl-demo-field=goal]').first();const wanted=(await liveGoal.inputValue())==='3'?'2':'3';
+await liveGoal.selectOption(wanted);await page.locator('#cwl-demo-activate').click();
+await page.waitForFunction(()=>!window.CwlApp.state.saveBusy&&!window.CwlApp.state.demoEditMode);
+assert.equal(liveSaves,1);assert.equal(await page.evaluate(()=>window.CwlApp.state.demo),false);
+await page.locator('[data-cwl-action=logout]').click();await page.waitForFunction(()=>!window.CwlApp.state.editor);
+assert.equal(await page.locator('#cwl-demo-edit-toggle').count(),0);
+record('authenticated co-leader edits and saves a real revision; logout restores read-only access on mobile');
+mode='unprepared';liveSaved=null;await page.goto(origin+'/?view=cwl&clan=2G8QCR92V');await done();
+assert.equal(await page.locator('[data-cwl-action=prepare]').count(),0);assert.equal(initializes,0);
+await page.locator('[data-cwl-action=login]').first().click();await page.locator('#cwl-login-email').fill('co@test.invalid');await page.locator('#cwl-login-password').fill('test-only-password');
+await page.locator('#cwl-login-form button[type=submit]').click();await page.waitForFunction(()=>window.CwlApp.state.editor&&!window.CwlApp.state.loginBusy&&!window.CwlApp.state.loading);await done();
+await page.evaluate(()=>{window.CwlCompute.calculate=async(_,progress)=>{progress({stage:'compute'});return {archive:new Uint8Array([31,139,8]).buffer};};});
+await page.locator('[data-cwl-action=prepare]').click();await done();
+assert.equal(initializes,1);assert.equal(await page.locator('.cwl-mission-item').count(),15);
+record('unprepared day stays read-only for visitors and only an authenticated editor can calculate and initialize it');
+const partial=await page.evaluate(()=>{
+  const state=structuredClone(window.CwlApp.state);state.plan.initial.warnings=['player_history_war_limit'];return window.CwlUI.render(state);
+});
+assert(partial.includes('Histórico parcial.'));assert(!partial.includes('player_history_war_limit'));
+record('source truncation is visible in plain language without exposing implementation codes');
 await page.unroute('**/api/**');
 assert.deepEqual(errors, []);
 fs.writeFileSync(`${dir}/verification.json`, JSON.stringify({ checks, errors }, null, 2));

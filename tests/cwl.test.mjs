@@ -1,8 +1,10 @@
 import test, { before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { connectDatabase, withDatabase } from '../src/cwl/database.js';
+import { readFileSync } from 'node:fs';
+import { connectDatabase, withDatabase,loadPlan } from '../src/cwl/database.js';
 import { migrate } from '../scripts/migrate-cwl.mjs';
-import { maximizeAssignment, planWar, validateWar } from '../src/cwl/planner.js';
+import { maximizeAssignment, planWar, validateWar,PLANNER_VERSION,DEFAULT_CONFIG } from '../src/cwl/planner.js';
+import { WarScores as S } from '../src/cwl/scoring.js';
 import { CwlService } from '../src/cwl/service.js';
 import { createCwlHandler } from '../src/cwl/router.js';
 import { createWorker } from '../src/worker.js';
@@ -33,6 +35,13 @@ beforeEach(async () => {
 });
 after(async () => { await sql?.end(); });
 const start = '20261024T100000.000Z';
+async function browserInput(){
+  now=Date.parse('2026-10-24T10:30:00Z');provider.raw.state='inWar';
+  const raw=structuredClone(provider.raw),training=await provider.training(),result=planWar({raw,clanTag:CLAN,history:training.history});
+  const payload={raw,training,model:result.model,config:DEFAULT_CONFIG,plannerVersion:PLANNER_VERSION,computeMs:25,computedAt:new Date(now).toISOString()};
+  const bytes=new Uint8Array(await new Response(new Blob([JSON.stringify(payload)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  return {payload,bytes,result};
+}
 const ensured = () => service.ensure(CLAN, start);
 const approve = async revision => { now += 1000; return service.revise(CLAN, start, { expectedRevision: revision, approve: true, reason: 'Approved for this round' }); };
 function assignHit(plan, player = 0, stars = 3, extras = {}) {
@@ -45,6 +54,92 @@ test('Hungarian assignment maximizes the team and uses every target once', () =>
   const a = maximizeAssignment([[2.1, 2, 2.8], [2.2, 2.9, 2.9], [.8, 1.1, 2.7]]);
   assert.deepEqual(a, [0, 1, 2]);
   assert.deepEqual(maximizeAssignment([[1, 1], [1, 1]]), [0, 1]);
+});
+
+test('browser-computed plan persists without server fitting, retains the full archive and cannot overwrite the first plan',async()=>{
+  const {payload,bytes,result}=await browserInput(),fit=S.fit;S.fit=()=>{throw Error('Server fitting must not run');};
+  try{
+    const first=await service.initializeComputed(CLAN,start,payload,bytes,'leader:test-user');
+    assert.equal(first.created,true);assert.equal(first.effective,null);
+    assert.deepEqual(first.initial.assignments,result.assignments.map(({probabilities,goalSupport,eta,note,...m})=>m));
+    const second=await service.initializeComputed(CLAN,start,payload,bytes,'coLeader:test-user');
+    assert.equal(second.created,false);assert.equal(second.id,first.id);
+    const audit=await service.read(CLAN,start,true);
+    assert.deepEqual(audit.scoreSnapshot,payload.model);assert.deepEqual(audit.sourceSnapshot.history,payload.training.history);
+    assert.equal(audit.sourceSnapshot.archive.submittedBy,'leader:test-user');
+    const minimal=await loadPlan(sql,CLAN,start);assert.deepEqual(Object.keys(minimal.score_snapshot),['version']);assert.deepEqual(minimal.source_snapshot,{});
+    await assert.rejects(sql`update cwl.plan_archives set submitted_by='other'`,/append-only/);
+    const [count]=await sql`select count(*)::int as n from cwl.plan_archives`;assert.equal(count.n,1);
+  }finally{S.fit=fit;}
+});
+
+test('tampered formula, changed war and stale browser calculations cannot create records',async()=>{
+  const {payload,bytes}=await browserInput();
+  const bad=structuredClone(payload);bad.model.players[0].attackScore=99;
+  await assert.rejects(service.initializeComputed(CLAN,start,bad,bytes,'leader:test'),/inconsistente/);
+  const altered=structuredClone(payload);altered.model.events[0].stars=(altered.model.events[0].stars+1)%4;
+  await assert.rejects(service.initializeComputed(CLAN,start,altered,bytes,'leader:test'),/não correspondem/);
+  const stale=structuredClone(payload);stale.computedAt=new Date(now-16*60000).toISOString();
+  await assert.rejects(service.initializeComputed(CLAN,start,stale,bytes,'leader:test'),/Data ou modificador/);
+  hit(provider.raw);await assert.rejects(service.initializeComputed(CLAN,start,payload,bytes,'leader:test'),e=>e.code==='war_changed_recalculate');
+  const [count]=await sql`select count(*)::int as n from cwl.plans`;assert.equal(count.n,0);
+});
+
+test('concurrent browser submissions decompress and persist only the first proposal',async()=>{
+  const {payload,bytes}=await browserInput();let loads=0;
+  const results=await Promise.all(Array.from({length:3},()=>withDatabase(env,db=>new CwlService(db,provider,()=>now).initializeComputed(CLAN,start,
+    async()=>{loads++;return {payload,bytes};},null,'leader:test'))));
+  assert.equal(loads,1);assert.equal(results.filter(r=>r.created).length,1);assert.equal(new Set(results.map(r=>r.id)).size,1);
+});
+
+test('anonymous initial uploads are refused before reading or decompressing their body',async()=>{
+  const handler=createCwlHandler({provider,database:async(_,fn)=>fn(sql),clock:()=>now,browserPlans:true});
+  const request=new Request(`http://localhost/api/cwl/clans/${CLAN}/wars/${start}/plan/initialize`,{method:'POST',headers:{'Content-Type':'application/gzip'},body:'invalid-gzip'});
+  await assert.rejects(handler(request,env),e=>e.status===401);assert.equal(request.bodyUsed,false);
+});
+
+test('public browser-mode reads never generate a plan or pin a policy for an untracked edition',async()=>{
+  const handler=createCwlHandler({provider,database:async(_,fn)=>fn(sql),clock:()=>now,browserPlans:true});
+  await assert.rejects(handler(new Request(`http://localhost/api/cwl/clans/${CLAN}/wars/${start}/plan`),env),e=>e.code==='plan_not_found');
+  await service.seasonAnalytics(CLAN,'2026-09');
+  const [count]=await sql`select (select count(*) from cwl.plans)+(select count(*) from cwl.ranking_policies) as n`;
+  assert.equal(Number(count.n),0);assert.equal(provider.trainingLoads,0);
+});
+
+test('preparation-day browser cutoff stays frozen while the server validates it later',async()=>{
+  const raw=structuredClone(provider.raw),training=await provider.training(),original=Date.now;
+  let model;try{Date.now=()=>now;model=S.fit({war:validateWar(raw,CLAN),history:training.history});}finally{Date.now=original;}
+  assert.equal(model.context.cutoff,now);
+  const payload={raw,training,model,config:DEFAULT_CONFIG,plannerVersion:PLANNER_VERSION,computeMs:10,computedAt:new Date(now).toISOString()};
+  const bytes=new Uint8Array(await new Response(new Blob([JSON.stringify(payload)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  now+=60000;const plan=await service.initializeComputed(CLAN,start,payload,bytes,'leader:test');
+  assert.equal(plan.created,true);assert.equal(plan.warState,'preparation');
+  assert.equal((await service.read(CLAN,start,true)).scoreSnapshot.context.cutoff,now-60000);
+});
+
+test('restricted database role can operate CWL but cannot rewrite snapshots, delete history or create tables', async () => {
+  await sql.unsafe(readFileSync(new URL('../db/security/cwl-runtime.sql', import.meta.url), 'utf8'));
+  const restricted = connectDatabase(env);
+  try {
+    await restricted.unsafe('SET ROLE cwl_runtime');
+    const [role] = await restricted`select rolsuper,rolcreatedb,rolcreaterole,rolbypassrls from pg_roles where rolname=current_user`;
+    assert.deepEqual(Object.values(role), [false,false,false,false]);
+    const scoped = new CwlService(restricted, provider, () => now);
+    const plan = await scoped.ensure(CLAN,start);
+    await scoped.revise(CLAN,start,{expectedRevision:1,approve:true,reason:'Least privilege check'});
+    assignHit(await scoped.read(CLAN,start)); now+=1000;
+    const synced = await scoped.sync(CLAN,start);
+    assert.equal(synced.metrics.attacksUsed,1);
+    assert.equal((await scoped.seasonAnalytics(CLAN,'2026-10')).ranking.entries.length,5);
+    for (const command of [
+      'UPDATE cwl.plans SET score_snapshot=\'{}\'::jsonb',
+      'DELETE FROM cwl.revisions', 'TRUNCATE cwl.attacks',
+      'CREATE TABLE cwl.forbidden(id integer)', 'UPDATE cwl.migrations SET version=version',
+    ]) await assert.rejects(restricted.unsafe(command), e => e.code==='42501');
+    assert.equal((await scoped.read(CLAN,start)).id,plan.id);
+    const [access] = await sql`select has_schema_privilege('anon','cwl','USAGE') as allowed where exists(select 1 from pg_roles where rolname='anon')`;
+    if (access) assert.equal(access.allowed,false);
+  } finally { await restricted.end(); }
 });
 test('optimizer agrees with brute force for deterministic small random matrices', () => {
   let seed = 7; const random = () => ((seed = (1664525 * seed + 1013904223) >>> 0) / 2 ** 32);
