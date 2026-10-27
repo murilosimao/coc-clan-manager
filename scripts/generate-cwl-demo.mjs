@@ -54,7 +54,7 @@ const plans = ['2026-10-07', '2026-10-08', '2026-10-09'].map((day, index) => {
     plannerVersion: result.version, scoreVersion: result.model.version, currentRevision: index === 2 ? 3 : 2,
     createdAt: raw.preparationStartTime, observedAt: '2026-10-09T14:00:00Z',
     initial: { assignments: result.assignments, participants: result.participants,
-      opponentParticipants: result.war.opponentRoster.map(({ tag, name, th }) => ({ tag, name, th })), warnings: result.warnings }, matchups: result.matchups,
+      opponentParticipants: result.war.opponentRoster.map(({ tag, name, th, position }) => ({ tag, name, th, position })), warnings: result.warnings }, matchups: result.matchups,
     effective: { revision: 2, assignments: approved }, current: { approved: index !== 2,
       assignments: index === 2 ? approved.map((m, i) => i === 12 ? { ...m, goalStars: 3 } : m) : approved }, outcomes,
     adoption: { missions: approved.length, targetRetained: approved.length,

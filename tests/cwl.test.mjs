@@ -106,6 +106,38 @@ test('public browser-mode reads never generate a plan or pin a policy for an unt
   assert.equal(Number(count.n),0);assert.equal(provider.trainingLoads,0);
 });
 
+test('public plan hides drafts and revision history while authenticated leadership can inspect them',async()=>{
+  const initial = await ensured();
+  const handler = createCwlHandler({provider,database:async(_,fn)=>fn(sql),clock:()=>now,browserPlans:true,
+    authorize: async request => {
+      if (request.headers.get('Authorization') !== 'Bearer editor-test') {
+        const { CwlError } = await import('../src/cwl/errors.js'); throw new CwlError(401,'Sessão necessária');
+      }
+      return { id:'editor-test',role:'leader' };
+    }});
+  const base = `http://localhost/api/cwl/clans/${CLAN}/wars/${start}/plan`;
+  const get = async headers => (await handler(new Request(base,{headers}),env)).json();
+  let publicView = await get();
+  assert.deepEqual(publicView.current.assignments,[]); assert.equal(publicView.effective,null);
+  assert.equal(publicView.initial.assignments,undefined); assert.equal(publicView.revisions,undefined);
+  let leader = await get({Authorization:'Bearer editor-test'});
+  assert.equal(leader.initial.assignments.length,initial.initial.assignments.length); assert.equal(leader.revisions.length,1);
+  await approve(1);
+  const approved = await service.read(CLAN,start);
+  const draftAssignments = approved.current.assignments.map(m => ({attackerTag:m.attackerTag,defenderTag:m.defenderTag,goalStars:m.goalStars}));
+  draftAssignments[0].goalStars = draftAssignments[0].goalStars === 1 ? 2 : 1;
+  await service.revise(CLAN,start,{expectedRevision:2,assignments:draftAssignments,approve:false,reason:'Teste'});
+  publicView = await get(); leader = await get({Authorization:'Bearer editor-test'});
+  assert.equal(publicView.current.assignments[0].goalStars,approved.current.assignments[0].goalStars);
+  assert.equal(leader.current.assignments[0].goalStars,draftAssignments[0].goalStars);
+  assert.equal(leader.revisions.length,3); assert.equal(publicView.revisions,undefined);
+  const rankingUrl = `http://localhost/api/cwl/clans/${CLAN}/seasons/2026-10/ranking`;
+  const publicRanking = await (await handler(new Request(rankingUrl),env)).json();
+  const leaderRanking = await (await handler(new Request(rankingUrl,{headers:{Authorization:'Bearer editor-test'}}),env)).json();
+  assert.equal(publicRanking.entries[0].opportunities[0].missionRevision,undefined);
+  assert.equal(leaderRanking.entries[0].opportunities[0].missionRevision,2);
+});
+
 test('preparation-day browser cutoff stays frozen while the server validates it later',async()=>{
   const raw=structuredClone(provider.raw),training=await provider.training(),original=Date.now;
   let model;try{Date.now=()=>now;model=S.fit({war:validateWar(raw,CLAN),history:training.history});}finally{Date.now=original;}
@@ -171,6 +203,7 @@ test('initial plan is persisted once even under concurrent page accesses', async
   const again = await ensured(); assert.equal(again.currentRevision, 1); assert.equal(provider.trainingLoads, 1);
   assert.equal(again.initial.opponentParticipants.length, 5);
   assert.equal(again.initial.opponentParticipants[0].name, provider.raw.opponent.members[0].name);
+  assert.equal(again.initial.opponentParticipants[0].position, provider.raw.opponent.members[0].mapPosition);
 });
 test('history and the initial snapshot are immutable in PostgreSQL', async () => {
   const p = await ensured();

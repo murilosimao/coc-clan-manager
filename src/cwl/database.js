@@ -50,6 +50,7 @@ export async function loadPlan(sql, tag, start, snapshots = false) {
   const [row] = await sql`select p.id,p.round_id,p.current_revision,p.retrospective,p.initial_plan,p.config,p.planner_version,p.created_at,
     case when ${snapshots} then p.score_snapshot else jsonb_build_object('version',p.score_snapshot->'version') end as score_snapshot,
     case when ${snapshots} then p.source_snapshot else '{}'::jsonb end as source_snapshot,
+    jsonb_build_object('clan',p.source_snapshot->'raw'->'clan'->'members', 'opponent',p.source_snapshot->'raw'->'opponent'->'members') as source_rosters,
     r.clan_tag, r.start_time, r.season, r.opponent_tag,
     r.war_state, r.end_at, r.last_observed_at
     from cwl.plans p join cwl.rounds r on r.id=p.round_id
