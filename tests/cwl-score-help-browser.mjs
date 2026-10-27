@@ -18,7 +18,7 @@ for (const width of [320, 390, 1440]) {
     assert.ok(b.x >= 0 && b.x + b.width <= width, `${width} ${label} tooltip clipped`);
     await (width < 700 ? summary.tap() : summary.click());
   }
-  await page.getByRole('tab',{name:'Ranking de mérito'}).click();
+  await page.getByRole('tab',{name:'Ranking dos jogadores'}).click();
   assert.match(await page.locator('.cwl-policy-summary').innerText(),/dificuldade/);
   assert.match(await page.locator('.cwl-policy-summary').innerText(),/destruição e tempo/);
   console.log(`PASS ${width}: score help and ranking`);
