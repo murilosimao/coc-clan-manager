@@ -212,7 +212,7 @@
   };
   function loadCwlPlan(tag, start) {
     if (!/^\d{8}T\d{6}\.\d{3}Z$/.test(start)) throw new Error('Escolha uma guerra válida.');
-    return request(cwlClan(tag) + '/wars/' + encodeURIComponent(start) + '/plan');
+    return request(cwlClan(tag) + '/wars/' + encodeURIComponent(start) + '/plan', {auth:true});
   }
   window.ClanAPI = { loadClan, loadPlayerStats, loadScoreHistory, audit,
     cwlApiOrigin:API_ORIGIN||location.origin,
@@ -223,6 +223,6 @@
     initializeCwlPlan:(tag,start,archive)=>request(cwlClan(tag)+'/wars/'+encodeURIComponent(start)+'/plan/initialize',{method:'POST',auth:true,headers:{'Content-Type':'application/gzip'},body:archive,timeout:120000}),
     reviseCwlPlan:(tag,start,body)=>request(cwlClan(tag)+'/wars/'+encodeURIComponent(start)+'/plan/revisions',{method:'POST',auth:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
     loadCwlSeason: (tag, season) => request(cwlClan(tag) + cwlSeason(season)),
-    loadCwlAnalytics: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/analytics'),
-    loadCwlRanking: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/ranking'), loadCwlPlan };
+    loadCwlAnalytics: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/analytics', {auth:true}),
+    loadCwlRanking: (tag, season) => request(cwlClan(tag) + cwlSeason(season) + '/ranking', {auth:true}), loadCwlPlan };
 })();

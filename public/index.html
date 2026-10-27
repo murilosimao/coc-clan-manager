@@ -43,6 +43,7 @@
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="m10.3 3.9-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0ZM12 9v4m0 4h.01"/></symbol>
+  <symbol id="i-crown" viewBox="0 0 24 24"><path d="M11.6 3.3a.5.5 0 0 1 .8 0l3 5.6a1 1 0 0 0 1.5.3l4.3-3.7a.5.5 0 0 1 .8.5l-2.8 10.3a1 1 0 0 1-1 .7H5.8a1 1 0 0 1-1-.7L2 6a.5.5 0 0 1 .8-.5l4.3 3.7a1 1 0 0 0 1.5-.3ZM5 21h14"/></symbol>
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 22V3m0 1c4-4 12 4 16 0v11c-4 4-12-4-16 0"/></symbol>
   <symbol id="i-crest" viewBox="0 0 64 72"><path d="M32 3 58 12v24c0 16-26 32-26 32S6 52 6 36V12Z" fill="#292f22" stroke="#e8ba62" stroke-width="2"/><path d="M32 8v54c7-5 21-17 21-26V16Z" fill="#55332c" stroke="none"/><path d="M19 46V27h6v5h5v-9h4v9h5v-5h6v19Z" fill="#e8ba62" stroke="none"/><path d="M29 46v-9h6v9" fill="#20251b" stroke="none"/><path d="m27 15 5-4 5 4-5 4Z" fill="#e8ba62" stroke="none"/></symbol>
 </defs></svg>
@@ -54,7 +55,10 @@
     <button type="button" data-view="war">Guerras</button>
     <button type="button" data-view="cwl">Liga CWL</button>
   </nav>
-  <button type="button" class="clan-menu" id="open-clan" aria-label="Clã e opções" aria-haspopup="dialog"><svg class="icon"><use href="#i-shield"/></svg><span>Meu clã</span><svg class="icon small"><use href="#i-chevron"/></svg></button>
+  <div class="header-actions">
+    <button type="button" class="leader-access" id="leader-access" aria-haspopup="dialog" hidden><svg class="icon"><use href="#i-crown"/></svg><span>Liderança</span></button>
+    <button type="button" class="clan-menu" id="open-clan" aria-label="Clã e opções" aria-haspopup="dialog"><svg class="icon"><use href="#i-shield"/></svg><span>Meu clã</span><svg class="icon small"><use href="#i-chevron"/></svg></button>
+  </div>
 </header>
 <main id="main" tabindex="-1">
   <section class="clan-heading" aria-label="Clã consultado"><div><div class="eyebrow" id="clan-eyebrow">PREPARAÇÃO DE GUERRA</div><h1 id="clan-name">Seu clã. Seu próximo time.</h1><div class="clan-meta"><span id="clan-tag">#2G8QCR92V</span><span class="meta-divider"></span><span id="data-freshness">Consultando os dados do clã</span></div></div><button type="button" class="button secondary refresh-button" id="refresh"><svg class="icon"><use href="#i-refresh"/></svg><span>Atualizar</span></button></section>
@@ -77,6 +81,10 @@
   <form id="clan-form"><label class="field" for="clan-input"><span>Tag do clã</span><input id="clan-input" name="tag" type="text" autocomplete="off" spellcheck="false" autocapitalize="characters" maxlength="16" required placeholder="#2G8QCR92V"></label><button type="submit" class="button primary">Consultar clã<svg class="icon"><use href="#i-arrow"/></svg></button></form>
   <div id="source-info" class="source-info"></div>
   <details class="privacy-note"><summary>Privacidade dos registros de uso</summary><p>Ações básicas são registradas com um identificador temporário desta aba. Os logs personalizados não incluem IP completo, nomes ou tags de jogadores, conteúdo de HAR ou credenciais.</p></details>
+</dialog>
+<dialog id="leader-dialog" class="clan-dialog leader-dialog" aria-labelledby="leader-title">
+  <div class="dialog-heading"><div><div class="eyebrow">LÍDER E COLÍDERES</div><h2 id="leader-title">Acesso da liderança</h2></div><button type="button" class="icon-button" id="close-leader" aria-label="Fechar acesso da liderança"><svg class="icon"><use href="#i-x"/></svg></button></div>
+  <div id="leader-body"></div>
 </dialog>
 <dialog id="stats-dialog" class="stats-dialog" aria-labelledby="stats-title">
   <div class="dialog-heading"><div><div class="eyebrow">HISTÓRICO PESSOAL</div><h2 id="stats-title">Estatísticas do jogador</h2></div><button type="button" class="icon-button" id="close-stats" aria-label="Fechar estatísticas"><svg class="icon"><use href="#i-x"/></svg></button></div>

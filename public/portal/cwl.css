@@ -86,11 +86,14 @@ body[data-view="cwl"] .clan-heading .refresh-button { display:none; }
 .cwl-person-data { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin-top:1px; }
 .cwl-duplicate-warning { display:flex; flex-basis:100%; align-items:flex-start; gap:4px; padding-top:2px; color:#f0cb82; font-size:10px; line-height:1.35; overflow-wrap:anywhere; }
 .cwl-duplicate-warning>.icon { flex:none; width:13px; height:13px; }
-.cwl-inline-score { position:relative; display:inline-flex; align-items:baseline; gap:3px; padding:2px 5px; border:1px solid var(--line); border-radius:3px; background:var(--cwl-inset); white-space:nowrap; cursor:help; }
-.cwl-inline-score::after { content:attr(data-tooltip); position:absolute; z-index:20; left:0; bottom:calc(100% + 7px); width:max-content; max-width:min(260px,calc(100vw - 120px)); box-sizing:border-box; padding:8px 10px; border:1px solid #6e6445; border-radius:4px; background:#292b20; box-shadow:0 5px 18px #0008; color:var(--text); font-size:11px; font-weight:400; line-height:1.45; white-space:normal; opacity:0; visibility:hidden; pointer-events:none; }
-.cwl-inline-score:hover::after,.cwl-inline-score:focus::after { opacity:1; visibility:visible; }
+.cwl-score-help { position:relative; display:inline-block; }
+.cwl-inline-score { display:inline-flex; align-items:baseline; gap:3px; padding:5px 7px; border:1px solid var(--line); border-radius:3px; background:var(--cwl-inset); white-space:nowrap; cursor:pointer; list-style:none; }
+.cwl-inline-score::-webkit-details-marker { display:none; }
+.cwl-score-tooltip { position:absolute; z-index:20; left:0; bottom:calc(100% + 7px); width:260px; max-width:min(260px,calc(100vw - 100px)); box-sizing:border-box; padding:10px 12px; border:1px solid #6e6445; border-radius:4px; background:#292b20; box-shadow:0 5px 18px #0008; color:var(--text); font-size:12px; font-weight:400; line-height:1.45; white-space:normal; }
+.cwl-score-help:not([open]) .cwl-score-tooltip { display:none; }
+.cwl-score-help:hover .cwl-score-tooltip { display:block; }
 .cwl-inline-score:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
-.cwl-defender .cwl-inline-score::after { left:auto; right:0; }
+.cwl-defender .cwl-score-tooltip { left:auto; right:0; }
 .cwl-inline-score>span { color:var(--muted); font-size:9px; font-weight:600; }
 .cwl-inline-score>b { color:var(--gold); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
 .cwl-inline-score.is-unknown>b { color:var(--muted); }
@@ -236,14 +239,17 @@ body[data-view="cwl"] .clan-heading .refresh-button { display:none; }
   .cwl-season-field input,.cwl-season-field select { width:100%; }
   .cwl-shell>.cwl-notice.is-info { padding:0; border:0; border-radius:0; background:transparent; font-size:11px; margin-bottom:9px; gap:6px; }
   .cwl-shell>.cwl-notice.is-info>.icon { width:14px; height:14px; }
-  .cwl-round-picker>p { display:none; }
+  .cwl-round-picker>p { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:3px 10px; margin-bottom:6px; font-size:11px; }
+  .cwl-round-picker:has(.cwl-round:nth-child(5))>p::after { content:'Deslize para ver outros ↔'; color:var(--gold); }
+  .cwl-rounds { scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
+  .cwl-round { scroll-snap-align:center; }
   .cwl-round { display:grid; grid-template-columns:1fr auto; gap:2px 8px; padding:7px 10px; }
   .cwl-round>span { grid-column:1; grid-row:1; font-size:11px; }
   .cwl-round>small { grid-column:2; grid-row:1; font-size:10px; }
   .cwl-round>strong { grid-column:1/-1; grid-row:2; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
   .cwl-overview { grid-template-columns:repeat(3,minmax(0,1fr)); padding:0; margin-bottom:12px; }
   .cwl-metric { padding:9px 10px; }
-  .cwl-metric:first-child { display:none; }
+  .cwl-metric:first-child { display:flex; grid-column:1 / -1; padding:9px 0; border-bottom:1px solid var(--line); }
   .cwl-metric:first-child>span { display:none; }
   .cwl-metric:first-child>strong { font-size:15px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .cwl-metric:first-child>small { font-size:11px; }
@@ -266,6 +272,8 @@ body[data-view="cwl"] .clan-heading .refresh-button { display:none; }
   .cwl-plan-result>.cwl-goal { flex-direction:row; align-items:center; gap:6px; }
   .cwl-plan-result>.cwl-outcome { min-width:0; flex-direction:row; flex-wrap:wrap; align-items:center; gap:4px 7px; }
   .cwl-goal-select { flex:1 1 92px; width:auto; min-width:0; }
+  /* iOS zooms the page on focus when form text is smaller than 16px. */
+  .cwl-target-select,.cwl-goal-select { font-size:16px; }
   .cwl-person strong { font-size:14px; }
   .cwl-mission-summary .cwl-person { gap:3px; }
   .cwl-mission-summary .cwl-th img { width:24px; height:24px; }
@@ -305,9 +313,12 @@ body[data-view="cwl"] .clan-heading .refresh-button { display:none; }
 @media (max-width:799px) {
   .cwl-export { display:none; }
   .mobile-nav { grid-template-columns:repeat(5,minmax(0,1fr)); }
+  .mobile-nav.without-copy { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .mobile-nav button[hidden] { display:none; }
   .mobile-nav button { min-width:0; }
   .mobile-nav button>span { max-width:100%; font-size:10px; }
   .cwl-shell.is-demo { padding-bottom:150px; }
+  .cwl-shell:has(.cwl-demo-dock.is-editing) { padding-bottom:150px; }
   .cwl-demo-dock.is-editing { right:10px; bottom:calc(84px + env(safe-area-inset-bottom,0px)); max-width:calc(100vw - 20px); gap:6px; padding:6px; }
 }
 @media (max-width:380px) {
@@ -328,14 +339,15 @@ body[data-view="cwl"] .clan-heading .refresh-button { display:none; }
   .cwl-confirm-actions { flex-direction:column-reverse; }
   .cwl-confirm-actions .button { width:100%; }
 }
+@media (max-width:650px) {
+  .cwl-round-picker:has(.cwl-round:nth-child(4))>p::after { content:'Deslize para ver outros ↔'; color:var(--gold); }
+}
+@media (max-width:500px) {
+  .cwl-round-picker:has(.cwl-round:nth-child(3))>p::after { content:'Deslize para ver outros ↔'; color:var(--gold); }
+}
 @media (max-width:360px) {
   .cwl-mission-summary.is-editable { grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr); }
 }
 @media (prefers-reduced-motion:reduce) {
   .cwl-shell *,.cwl-shell *::before { animation:none!important; transition:none!important; }
 }
-.cwl-auth-role { color: var(--muted); font-size: .8rem; align-self: center; }
-#cwl-login-form { display: grid; gap: .65rem; text-align: left; }
-#cwl-login-form input { width: 100%; min-width: 0; padding: .8rem; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; }
-#cwl-login-form label { color: var(--muted); font-size: .85rem; }
-.cwl-auth-error { color: #f0a59b; }

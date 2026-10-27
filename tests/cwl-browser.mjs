@@ -118,6 +118,7 @@ await page.route('**/api/**', async route => {
   }
   calls.push(path);
   if(path.endsWith('/auth/session'))return fulfill({authenticated:signedIn,...(signedIn?{editor:{id:'10000000-0000-4000-8000-000000000002',role:'coLeader',clanTag:'2G8QCR92V'}}:{})});
+  if(path.endsWith('/auth/login')&&atStart==='bad-login')return fulfill({error:'Não foi possível autenticar esta sessão.',code:'auth_failed'},401);
   if(path.endsWith('/auth/login')){signedIn=true;return fulfill({authenticated:true,editor:{id:'10000000-0000-4000-8000-000000000002',role:'coLeader',clanTag:'2G8QCR92V'}});}
   if(path.endsWith('/auth/logout')){signedIn=false;return fulfill({authenticated:false});}
   if(path.endsWith('/revisions')){
@@ -194,23 +195,35 @@ mode='normal';await page.goto(origin+'/?view=cwl&clan=2G8QCR92V');await done();
 assert.equal(await page.locator('#cwl-demo-edit-toggle').count(),0);
 for(const width of [320,768,1440]){await page.setViewportSize({width,height:950});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),width);}
 await page.setViewportSize({width:390,height:900});
-await page.locator('[data-cwl-action=login]').first().click();
-await page.locator('#cwl-login-email').fill('co@test.invalid');await page.locator('#cwl-login-password').fill('test-only-password');
+assert.equal(await page.locator('#leader-access').isVisible(),true);assert.equal(await page.locator('[data-cwl-action=login]').count(),0);
+await page.locator('#leader-access').click();
+mode='bad-login';await page.locator('#leader-email').fill('co@test.invalid');await page.locator('#leader-password').fill('wrong-password');
+await page.locator('#leader-form button[type=submit]').click();await page.locator('.leader-error').waitFor();
+assert.ok((await page.locator('.leader-error').innerText()).includes('Email ou senha incorretos'));
+assert.equal(await page.locator('#leader-email').inputValue(),'co@test.invalid');assert.equal(await page.locator('#leader-password').inputValue(),'');
+assert.equal(await page.evaluate(()=>document.activeElement.id),'leader-password');mode='normal';
+await page.locator('#leader-password').fill('test-only-password');
 await page.screenshot({path:`${dir}/390-login.png`});
-await page.locator('#cwl-login-form button[type=submit]').click();await page.waitForFunction(()=>window.CwlApp.state.editor&&!window.CwlApp.state.loginBusy&&!window.CwlApp.state.loading);await done();
+await page.locator('#leader-form button[type=submit]').click();await page.waitForFunction(()=>window.CwlApp.state.editor&&!window.CwlApp.state.loading);await done();
+assert.equal(await page.locator('#leader-dialog').evaluate(d=>d.open),false);assert.equal(await page.locator('#leader-access').innerText(),'Colíder');
 assert.equal(await page.evaluate(()=>window.CwlApp.state.editor.role),'coLeader');
 await page.locator('#cwl-demo-edit-toggle').click();
 const liveGoal=page.locator('[data-cwl-demo-field=goal]').first();const wanted=(await liveGoal.inputValue())==='3'?'2':'3';
 await liveGoal.selectOption(wanted);await page.locator('#cwl-demo-activate').click();
 await page.waitForFunction(()=>!window.CwlApp.state.saveBusy&&!window.CwlApp.state.demoEditMode);
 assert.equal(liveSaves,1);assert.equal(await page.evaluate(()=>window.CwlApp.state.demo),false);
-await page.locator('[data-cwl-action=logout]').click();await page.waitForFunction(()=>!window.CwlApp.state.editor);
+await page.locator('#leader-access').click();await page.locator('[data-command=leader-sign-out]').click();await page.waitForFunction(()=>!window.CwlApp.state.editor);
+assert.equal(await page.locator('#leader-access').innerText(),'Liderança');
 assert.equal(await page.locator('#cwl-demo-edit-toggle').count(),0);
 record('authenticated co-leader edits and saves a real revision; logout restores read-only access on mobile');
+await page.goto(origin+'/?clan=2G8QCR92V&login=1');await page.waitForFunction(()=>document.querySelector('#leader-dialog').open);
+assert.equal(new URL(page.url()).searchParams.has('login'),false);assert.equal(await page.evaluate(()=>window.ClanManager.state.view),'cwl');
+assert.equal(await page.evaluate(()=>document.activeElement.id),'leader-email');await page.keyboard.press('Escape');
+record('leadership access is in the header on every view, explains wrong passwords and opens directly from the Pages link');
 mode='unprepared';liveSaved=null;await page.goto(origin+'/?view=cwl&clan=2G8QCR92V');await done();
 assert.equal(await page.locator('[data-cwl-action=prepare]').count(),0);assert.equal(initializes,0);
-await page.locator('[data-cwl-action=login]').first().click();await page.locator('#cwl-login-email').fill('co@test.invalid');await page.locator('#cwl-login-password').fill('test-only-password');
-await page.locator('#cwl-login-form button[type=submit]').click();await page.waitForFunction(()=>window.CwlApp.state.editor&&!window.CwlApp.state.loginBusy&&!window.CwlApp.state.loading);await done();
+await page.locator('[data-cwl-action=login]').first().click();await page.locator('#leader-email').fill('co@test.invalid');await page.locator('#leader-password').fill('test-only-password');
+await page.locator('#leader-form button[type=submit]').click();await page.waitForFunction(()=>window.CwlApp.state.editor&&!window.CwlApp.state.loading);await done();
 await page.evaluate(()=>{window.CwlCompute.calculate=async(_,progress)=>{progress({stage:'compute'});return {archive:new Uint8Array([31,139,8]).buffer};};});
 await page.locator('[data-cwl-action=prepare]').click();await done();
 assert.equal(initializes,1);assert.equal(await page.locator('.cwl-mission-item').count(),15);

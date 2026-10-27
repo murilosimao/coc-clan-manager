@@ -28,6 +28,42 @@ async function authorize(request, env, tag) {
   requireCondition(clanTag(env.LEADER_CLAN_TAG) === tag, 403, 'Credencial não autorizada para este clã.', 'clan_forbidden');
 }
 
+// Public readers get the latest approved orders, not the leadership's draft or
+// revision history. Keep the roster and actual attack results for the UI.
+export function publicPlan(plan) {
+  const { revisions, adoption, currentRevision, ...result } = plan;
+  const { assignments, expectedStars, expectedGain, mirrorExpectedStars, computeMs, warnings, ...roster } = plan.initial || {};
+  result.initial = roster;
+  result.current = plan.effective
+    ? { assignments: plan.effective.assignments, approved: true }
+    : { assignments: [], approved: false };
+  result.effective = plan.effective ? { assignments: plan.effective.assignments } : null;
+  const targets = result.current.assignments.map(m => m.defenderTag);
+  result.duplicateTargets = [...new Set(targets)].filter(tag => targets.filter(t => t === tag).length > 1);
+  result.state = plan.effective ? 'approved' : 'draft';
+  result.outcomes = (plan.outcomes || []).map(({ missionRevision, initialTargetFollowed, initialGoalReached, initialMissionFulfilled, ...hit }) => hit);
+  if (result.metrics) {
+    const { initialTargetsFollowed, initialMissionsFulfilled, ...metrics } = result.metrics;
+    result.metrics = metrics;
+  }
+  return result;
+}
+
+function publicRanking(ranking) {
+  return { ...ranking, entries: (ranking.entries || []).map(entry => ({ ...entry,
+    opportunities: (entry.opportunities || []).map(({ missionRevision, ...opportunity }) => opportunity) })) };
+}
+
+async function optionalEditor(request, env, tag, authorizeRequest) {
+  try { return await authorizeRequest(request, env, tag); }
+  catch (error) {
+    // A missing or rejected session only receives the public view. Surface
+    // authentication outages instead of pretending a signed-in editor is public.
+    if (error instanceof CwlError && (error.status === 401 || error.status === 403)) return null;
+    throw error;
+  }
+}
+
 export function createCwlHandler({ provider = new ClashCwlProvider(), database = withDatabase, clock = Date.now, authorize:authorizeRequest=authorize, browserPlans=false } = {}) {
   let archiveInFlight=false;
   return async function handleCwl(request, env) {
@@ -44,6 +80,8 @@ export function createCwlHandler({ provider = new ClashCwlProvider(), database =
     const write = ['revisions', 'sync', 'reviews','initialize'].includes(action);
     requireCondition(request.method === (write ? 'POST' : 'GET'), 405, 'Método não permitido.');
     const identity=write||action==='audit'||action==='dataset'?await authorizeRequest(request,env,tag):null;
+    const editor = browserPlans && tag && ((!action && planMatch) || action === 'metrics' || action === 'analytics' || action === 'ranking')
+      ? await optionalEditor(request,env,tag,authorizeRequest) : null;
     const actor=identity?.id?identity.role+':'+identity.id:'leader';
     const body = write && !['sync','initialize'].includes(action) ? await readBody(request) : null;
     const archiveOperation=browserPlans&&['initialize','audit'].includes(action);
@@ -67,6 +105,16 @@ export function createCwlHandler({ provider = new ClashCwlProvider(), database =
         if (seasonMatch) {
           if (action === 'dataset') return response(await service.dataset(tag, seasonMatch[2]));
           const analytics = await service.seasonAnalytics(tag, seasonMatch[2]);
+          if (browserPlans && !editor && (action === 'analytics' || action === 'ranking')) {
+            analytics.ranking = publicRanking(analytics.ranking);
+          }
+          if (browserPlans && action === 'analytics' && !editor) {
+            analytics.rounds = analytics.rounds.map(({ adoption, metrics, ...round }) => {
+              const { initialTargetsFollowed, initialMissionsFulfilled, ...visibleMetrics } = metrics || {};
+              return { ...round, metrics: visibleMetrics };
+            });
+            delete analytics.calibration;
+          }
           return response(action === 'ranking' ? { clanTag: tag, season: seasonMatch[2], ...analytics.ranking } : analytics);
         }
         if(action==='initialize'){
@@ -80,7 +128,7 @@ export function createCwlHandler({ provider = new ClashCwlProvider(), database =
         if (action === 'reviews') return response(await service.review(tag, start, body,actor));
         if (action === 'sync') return response(await service.sync(tag, start));
         if (action === 'audit') return response(await service.read(tag, start, true));
-        if (action === 'metrics') { const p = await service.read(tag, start); return response({ adoption: p.adoption, metrics: p.metrics, outcomes: p.outcomes }); }
+        if (action === 'metrics') { const raw = await service.read(tag, start), p = browserPlans && !editor ? publicPlan(raw) : raw; return response({ ...(p.adoption ? { adoption: p.adoption } : {}), metrics: p.metrics, outcomes: p.outcomes }); }
         let plan = browserPlans?{...await service.read(tag,start),created:false}:await service.ensure(tag,start);
         if (!plan.created && (!plan.observedAt || clock() - new Date(plan.observedAt).getTime() >= 60000)) {
           try { plan = { ...(await service.sync(tag, start)), created: false }; }
@@ -89,7 +137,7 @@ export function createCwlHandler({ provider = new ClashCwlProvider(), database =
             plan.trackingWarning = { code: error.code, message: error.message };
           }
         }
-        return response(plan, plan.created ? 201 : 200);
+        return response(browserPlans && !editor ? publicPlan(plan) : plan, plan.created ? 201 : 200);
       });
     } catch (error) {
       if (error instanceof CwlError) throw error;

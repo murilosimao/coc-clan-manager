@@ -20,9 +20,12 @@
     query: '', warQuery: '', currentWarFilter: 'all', expanded: new Set(), previousWarExpanded: false, advancedOpen: false,
   };
   const statsState = { tag: '', name: '', type: 'random', data: null, loading: false, error: '', token: 0, cache: new Map() };
+  const leaderState = { busy: false, error: '', email: '' };
+  const leaderRoles = { leader: 'Líder', coLeader: 'Colíder' };
   let statsOpener;
   let toastTimer;
   let dialogOpener;
+  let leaderOpener;
 
   function loadSettings() {
     try {
@@ -118,7 +121,11 @@
   }
   function updateCopyControl() {
     const canCopy = Boolean(state.selection?.selected.length) && !state.loading && !state.historyLoading;
-    $('#mobile-copy').disabled = state.view === 'cwl' ? !window.CwlApp.canCopy() : !canCopy;
+    const cwlCanCopy = state.view === 'cwl' && window.CwlApp.canCopy();
+    const mobileCopy = $('#mobile-copy');
+    mobileCopy.disabled = state.view === 'cwl' ? !cwlCanCopy : !canCopy;
+    mobileCopy.hidden = state.view === 'cwl' && !cwlCanCopy && !window.CwlApp.state.loading;
+    mobileCopy.closest('.mobile-nav')?.classList.toggle('without-copy', mobileCopy.hidden);
     const label = state.view === 'cwl' ? window.CwlApp.state.activeTab === 'ranking' ? 'Copiar ranking' : 'Copiar plano' : 'Copiar TSV';
     $('#mobile-copy span').textContent = label;
     $('#mobile-copy').setAttribute('aria-label', label + ' em TSV para colar em uma planilha');
@@ -650,6 +657,53 @@
     $('#clan-dialog').showModal();
   }
   function closeClan() { $('#clan-dialog').close(); dialogOpener?.focus(); }
+  function renderLeaderAccess() {
+    const cwl = window.CwlApp.state, editor = cwl.editor, node = $('#leader-access');
+    node.hidden = cwl.demo;
+    node.classList.toggle('is-signed', Boolean(editor));
+    node.innerHTML = `${icon('crown')}<span>${editor ? leaderRoles[editor.role] || 'Liderança' : 'Liderança'}</span>`;
+    node.setAttribute('aria-label', editor ? `Conta da liderança: ${leaderRoles[editor.role] || 'liderança'} conectado` : 'Entrar como liderança');
+    // CWL renders often while loading; only rebuild the open dialog when the account changes.
+    if ($('#leader-dialog').open && !leaderState.busy && leaderState.shown !== (editor?.id || '')) renderLeaderDialog();
+  }
+  function renderLeaderDialog() {
+    const editor = window.CwlApp.state.editor, busy = leaderState.busy ? 'disabled' : '';
+    leaderState.shown = editor?.id || '';
+    const error = leaderState.error ? `<p class="leader-error" role="alert">${icon('alert')}<span>${esc(leaderState.error)}</span></p>` : '';
+    $('#leader-title').textContent = editor ? 'Você está conectado' : 'Acesso da liderança';
+    $('#leader-body').innerHTML = editor
+      ? `<div class="leader-session">${icon('crown')}<div><strong>${esc(leaderRoles[editor.role] || 'Liderança')} do clã #${esc(editor.clanTag)}</strong><small>Pode preparar, ajustar e aprovar o plano da CWL.</small></div></div>${error}<div class="leader-actions"><button type="button" class="button primary" data-command="leader-open-cwl">Abrir plano da CWL ${icon('arrow')}</button><button type="button" class="button secondary" data-command="leader-sign-out" ${busy}>${leaderState.busy ? 'Saindo…' : 'Sair da conta'}</button></div>`
+      : `<p class="leader-intro">Para <strong>líder e colíderes</strong> prepararem, ajustarem e aprovarem o plano da CWL. Membros não precisam entrar: o plano aprovado fica visível para todos.</p><form id="leader-form"><label class="field" for="leader-email"><span>Email</span><input id="leader-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required value="${esc(leaderState.email)}" ${busy}></label><label class="field" for="leader-password"><span>Senha</span><input id="leader-password" name="password" type="password" autocomplete="current-password" required ${busy}></label>${error}<button type="submit" class="button primary" ${busy}>${leaderState.busy ? 'Entrando…' : 'Entrar'}</button></form><p class="leader-note">O acesso é liberado somente para contas autorizadas do clã.</p>`;
+  }
+  function openLeader() {
+    const loginUrl = window.ClanAPI.cwlLoginUrl;
+    if (loginUrl && !window.CwlApp.state.editor) { location.href = loginUrl + '&clan=' + encodeURIComponent(state.clanTag) + '&login=1'; return; }
+    leaderOpener = document.activeElement; leaderState.error = '';
+    renderLeaderDialog();
+    if (!$('#leader-dialog').open) $('#leader-dialog').showModal();
+    ($('#leader-email')?.value ? $('#leader-password') : $('#leader-email') || $('[data-command="leader-open-cwl"]'))?.focus();
+  }
+  function closeLeader() { if (leaderState.busy) return; $('#leader-dialog').close(); leaderOpener?.focus({ preventScroll: true }); }
+  async function signInLeader(form) {
+    if (leaderState.busy) return;
+    const values = new FormData(form), password = String(values.get('password') || '');
+    leaderState.email = String(values.get('email') || '').trim(); leaderState.busy = true; leaderState.error = ''; renderLeaderDialog();
+    try {
+      const editor = await window.CwlApp.signIn(leaderState.email, password);
+      leaderState.busy = false; leaderState.email = '';
+      $('#leader-dialog').close(); setView('cwl');
+      toast(`Você entrou como ${leaderRoles[editor?.role] || 'liderança'}. Agora pode preparar e ajustar o plano da CWL.`);
+    } catch (error) {
+      leaderState.busy = false; leaderState.error = error.message; renderLeaderDialog(); $('#leader-password')?.focus();
+    }
+  }
+  async function signOutLeader() {
+    if (leaderState.busy) return;
+    leaderState.busy = true; leaderState.error = ''; renderLeaderDialog();
+    try { await window.CwlApp.signOut(); leaderState.busy = false; $('#leader-dialog').close(); toast('Você saiu da conta da liderança.'); }
+    catch (error) { leaderState.busy = false; leaderState.error = error.message; renderLeaderDialog(); }
+    renderLeaderAccess();
+  }
   function bindEvents() {
     document.addEventListener('error', (event) => {
       const image = event.target;
@@ -665,6 +719,11 @@
     $('#refresh').addEventListener('click', () => state.view === 'cwl' ? window.CwlApp.refresh() : loadClan());
     $('#open-clan').addEventListener('click', openClan);
     $('#close-clan').addEventListener('click', closeClan);
+    $('#leader-access').addEventListener('click', openLeader);
+    $('#close-leader').addEventListener('click', closeLeader);
+    $('#leader-dialog').addEventListener('cancel', (event) => { if (leaderState.busy) event.preventDefault(); });
+    $('#leader-dialog').addEventListener('click', (event) => { if (event.target === $('#leader-dialog')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeLeader(); } });
+    $('#leader-dialog').addEventListener('submit', (event) => { if (event.target.id === 'leader-form') { event.preventDefault(); signInLeader(event.target); } });
     $('#clan-dialog').addEventListener('click', (event) => { if (event.target === $('#clan-dialog')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeClan(); } });
     $('#clan-form').addEventListener('submit', (event) => { event.preventDefault(); const tag = E.normalizeTag($('#clan-input').value); if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag)) { $('#clan-input').setCustomValidity('Use uma tag válida de clã.'); $('#clan-input').reportValidity(); return; } closeClan(); setView('team', false); loadClan(tag); });
     $('#clan-input').addEventListener('input', () => $('#clan-input').setCustomValidity(''));
@@ -683,6 +742,8 @@
       if (button.dataset.command === 'copy') copySelection();
       if (button.dataset.command === 'export') downloadSelection();
       if (button.dataset.command === 'open-clan') openClan();
+      if (button.dataset.command === 'leader-open-cwl') { $('#leader-dialog').close(); setView('cwl'); }
+      if (button.dataset.command === 'leader-sign-out') signOutLeader();
       if (button.dataset.command === 'all-players') { state.filter = 'all'; state.query = ''; renderTeam(); setView('team'); $('#roster-search')?.focus({ preventScroll: true }); $('#team-title')?.scrollIntoView({ block: 'start' }); }
     });
     $('#main').addEventListener('change', (event) => { if (event.target.dataset.setting) handleSetting(event.target); });
@@ -703,8 +764,12 @@
   const requestedClan=String(params.get('clan')||'').replace(/^#/,'').toUpperCase();
   if(/^[0289PYLQGRJCUV]{3,15}$/.test(requestedClan)){state.clanTag=requestedClan;$('#clan-input').value=requestedClan;}
   window.CwlApp.init({ clanTag: params.get('demo') === '1' ? E.DEFAULT_CLAN : state.clanTag, demo: params.get('demo') === '1',
-    activeTab: params.get('tab'), onChange: () => { updateCopyControl(); if (state.view === 'cwl') renderHeader(); }, exportData: copySelection });
-  bindEvents(); render(); setView(params.get('view') === 'cwl' ? 'cwl' : 'team', false); audit('page_view');
+    activeTab: params.get('tab'), onChange: () => { updateCopyControl(); renderLeaderAccess(); if (state.view === 'cwl') renderHeader(); }, exportData: copySelection, requestLogin: openLeader });
+  bindEvents(); render(); setView(params.get('view') === 'cwl' || params.has('login') ? 'cwl' : 'team', false); audit('page_view');
+  // Pages sends leaders to the API origin with login=1; open the form once the session is known.
+  const loginRequested = params.get('login') === '1' && params.get('demo') !== '1';
+  if (params.has('login')) { params.delete('login'); history.replaceState(null, '', location.pathname + (params.size ? '?' + params : '') + location.hash); }
+  window.CwlApp.loadSession().then(() => { if (loginRequested && !window.CwlApp.state.editor) openLeader(); });
   // Deterministic demo is available for design review; live failures never trigger it.
   if (new URLSearchParams(location.search).get('demo') === '1') loadDemo(); else loadClan();
   window.ClanManager = { state, selectionTSV, loadClan };

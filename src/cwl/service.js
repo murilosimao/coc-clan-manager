@@ -101,6 +101,10 @@ export class CwlService {
     const reviews = await sql`select * from cwl.reviews where round_id=${row.round_id} order by created_at,id`;
     const reviewByOrder = new Map(reviews.map(r => [r.attack_order, r]));
     const latestApproved = [...revisions].reverse().find(r => r.state === 'approved');
+    // Recover map positions from the original war snapshot by tag; never infer
+    // a position from array order, including for previously saved plans.
+    const positions = new Map([...(row.source_rosters?.clan || []), ...(row.source_rosters?.opponent || [])]
+      .map(p => [String(p.tag || '').replace(/^#/, '').toUpperCase(), p.mapPosition]));
     const original = row.initial_plan.assignments;
     const adoption = latestApproved ? (() => {
       const flags = original.map(m => {
@@ -148,7 +152,7 @@ export class CwlService {
       initial: { assignments: original.map(cleanMission), expectedStars: row.initial_plan.expectedStars,
         assignmentPrecision:row.initial_plan.assignmentPrecision??null,
         expectedGain: row.initial_plan.expectedGain, participants: row.initial_plan.participants,
-        opponentParticipants: (row.initial_plan.matchups[0] || []).map(m => ({ tag: m.defenderTag, name: m.defenderName, th: m.defenderCV,
+        opponentParticipants: (row.initial_plan.matchups[0] || []).map(m => ({ tag: m.defenderTag, name: m.defenderName, th: m.defenderCV, position: m.defenderPosition ?? positions.get(m.defenderTag) ?? null,
           defenseScore:m.defenseScore,defenseEvidence:m.defenseEvidence,defenseCount:m.defenseCount,defenseWeight:m.defenseWeight })),
         mirrorExpectedStars: row.initial_plan.mirrorExpectedStars, computeMs: row.initial_plan.computeMs, warnings: row.initial_plan.warnings },
       current: { assignments: current.assignments.map(cleanMission), approved: current.state === 'approved' },

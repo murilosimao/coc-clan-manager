@@ -3,13 +3,21 @@
   'use strict';
   const state = { clanTag: '', season: new Date().toISOString().slice(0, 7), rounds: [], selectedStart: '',
     plan: null, ranking: null, rankingFetchedAt: '', syncWarning: '', activeTab: 'plan', query: '', loading: '', error: '', demo: false, demoEditMode: false, demoTargetEditorTag: '', demoEditSnapshot: null, demoCancelConfirm: false, leader: false,
-    editor:null,loginOpen:false,loginBusy:false,loginEmail:'',authError:'',saveBusy:false,missingPlan:false,loginUrl:null };
+    editor:null,saveBusy:false,missingPlan:false,loginUrl:null };
   let active = false, generation = 0, loaded = false, demoData = null;
   const demoPlans = new Map();
-  let onUpdate = () => {}, onExport = () => {};
+  let onUpdate = () => {}, onExport = () => {}, onLogin = () => {};
   const openDetails = new Set();
   const container = () => document.getElementById('cwl-view');
   const canEdit=()=>state.demo||state.editor?.clanTag===state.clanTag&&['leader','coLeader'].includes(state.editor.role);
+  function centerSelectedRound(root) {
+    const rail = root?.querySelector('.cwl-rounds'), selected = rail?.querySelector('[aria-pressed="true"]');
+    if (rail && selected && rail.clientWidth) {
+      const railBox = rail.getBoundingClientRect(), selectedBox = selected.getBoundingClientRect();
+      rail.scrollLeft += selectedBox.left - railBox.left - (railBox.width - selectedBox.width) / 2;
+    }
+  }
+  window.addEventListener('resize', () => centerSelectedRound(container()));
   function render() {
     const root = container(); if (!root || !window.CwlUI) return;
     const focused = root.contains(document.activeElement) ? document.activeElement : null;
@@ -18,8 +26,7 @@
     root.innerHTML = window.CwlUI.render(state);
     root.querySelectorAll('details[data-cwl-detail]').forEach(d => { d.open = openDetails.has(d.dataset.cwlDetail); });
     root.querySelectorAll('[role="tab"]').forEach(t => { t.tabIndex = t.getAttribute('aria-selected') === 'true' ? 0 : -1; });
-    const rail = root.querySelector('.cwl-rounds'), selected = rail?.querySelector('[aria-pressed="true"]');
-    if (rail && selected) rail.scrollLeft = selected.offsetLeft - rail.offsetLeft - (rail.clientWidth - selected.clientWidth) / 2;
+    centerSelectedRound(root);
     if (id) {
       const next = document.getElementById(id); next?.focus({ preventScroll: true });
       if (selection && next?.setSelectionRange && next.type !== 'month') next.setSelectionRange(...selection);
@@ -145,17 +152,28 @@
     }catch(error){if(token===generation&&error.name!=='AbortError')state.error=message(error);}
     finally{if(token===generation){state.loading='';render();}}
   }
-  async function login(form){
-    if(state.loginBusy)return;
-    const values=new FormData(form),email=String(values.get('email')||''),password=String(values.get('password')||'');
-    form.elements.password.value='';state.loginEmail=email;state.loginBusy=true;state.authError='';render();
-    try{const session=await window.ClanAPI.loginCwl(email,password);state.editor=session.editor;state.loginOpen=false;state.loginEmail='';await loadSeason();}
-    catch(error){state.authError=message(error);}finally{state.loginBusy=false;render();}
+  function authMessage(error){
+    if(error?.code==='auth_failed'&&error.status===401)return 'Email ou senha incorretos. Confira e tente novamente.';
+    if(error?.code==='editor_forbidden')return 'Esta conta não tem acesso de liderança. Peça a liberação para quem administra o aplicativo.';
+    if(error?.status===503)return 'O acesso da liderança está indisponível agora. Tente novamente em alguns minutos.';
+    return message(error);
   }
-  async function logout(){
-    if(state.demoEditMode||state.loading)return;
-    try{await window.ClanAPI.logoutCwl();state.editor=null;state.authError='';}
-    catch(error){state.authError=message(error);}render();
+  async function signIn(email,password){
+    try{const session=await window.ClanAPI.loginCwl(email,password);state.editor=session.editor||null;}
+    catch(error){throw new Error(authMessage(error));}
+    if(active)void loadSeason();else{loaded=false;render();}
+    return state.editor;
+  }
+  async function signOut(){
+    if(state.demoEditMode||state.saveBusy)throw new Error('Salve ou cancele a edição do plano antes de sair.');
+    if(state.loading)throw new Error('Aguarde a consulta da Liga terminar antes de sair.');
+    try{await window.ClanAPI.logoutCwl();}catch(error){throw new Error(message(error));}
+    state.editor=null;render();
+  }
+  async function loadSession(){
+    if(state.demo)return;
+    try{const session=await window.ClanAPI.loadCwlSession();state.editor=session.editor||null;}catch{state.editor=null;}
+    render();
   }
   async function fetchRanking(token) {
     state.loading = 'Conferindo o mérito e os resultados da edição…'; render();
@@ -231,7 +249,7 @@
     if (state.clanTag === clanTag && state.demo === demo) return;
     generation++; loaded = false; clearDetails(); demoPlans.clear();
     window.CwlCompute?.cancel();
-    Object.assign(state, { clanTag, demo, demoEditMode: false, demoTargetEditorTag: '', demoEditSnapshot: null, demoCancelConfirm: false, rounds: [], selectedStart: '', plan: null, ranking: null, rankingFetchedAt: '', syncWarning: '', loading: '', error: '', query: '',saveBusy:false,missingPlan:false,loginOpen:false,loginEmail:'' });
+    Object.assign(state, { clanTag, demo, demoEditMode: false, demoTargetEditorTag: '', demoEditSnapshot: null, demoCancelConfirm: false, rounds: [], selectedStart: '', plan: null, ranking: null, rankingFetchedAt: '', syncWarning: '', loading: '', error: '', query: '',saveBusy:false,missingPlan:false });
     render(); if (active) void loadSeason();
   }
   function clearDetails() {
@@ -242,8 +260,8 @@
     state.activeTab = tab; state.query = ''; render();
     container().querySelector(`[data-cwl-action="tab"][data-tab="${state.activeTab}"]`)?.focus({ preventScroll: true });
   }
-  function init({ clanTag, demo = false, activeTab = 'plan', onChange = () => {}, exportData = () => {} }) {
-    onUpdate = onChange; onExport = exportData; state.activeTab = activeTab === 'ranking' ? 'ranking' : 'plan';
+  function init({ clanTag, demo = false, activeTab = 'plan', onChange = () => {}, exportData = () => {}, requestLogin = () => {} }) {
+    onUpdate = onChange; onExport = exportData; onLogin = requestLogin; state.activeTab = activeTab === 'ranking' ? 'ranking' : 'plan';
     state.loginUrl=window.ClanAPI.cwlLoginUrl;
     setContext(clanTag, demo);
     container().addEventListener('click', event => {
@@ -255,9 +273,7 @@
       else if (action === 'demo-activate') activateDemoDraft();
       else if (action === 'demo-reset') resetDemoPlan();
       else if (action === 'prepare') void preparePlan();
-      else if (action === 'login') {state.loginOpen=true;state.authError='';render();container().querySelector('#cwl-login-email')?.focus();}
-      else if (action === 'login-close'&&!state.loginBusy) {state.loginOpen=false;state.loginEmail='';state.authError='';render();}
-      else if (action === 'logout') void logout();
+      else if (action === 'login') onLogin();
       else if (action === 'demo-edit-toggle' && canEdit() && state.plan?.current) { state.demoEditSnapshot = { assignments: clone(state.plan.current.assignments), approved: state.plan.current.approved }; state.demoEditMode = true; state.demoTargetEditorTag = ''; render(); container().querySelector('#cwl-demo-cancel')?.focus({ preventScroll: true }); }
       else if (action === 'demo-cancel' && state.demoEditMode&&!state.saveBusy) { state.demoCancelConfirm = true; render(); container().querySelector('#cwl-demo-cancel-continue')?.focus({ preventScroll: true }); }
       else if (action === 'demo-cancel-continue' && state.demoCancelConfirm) { state.demoCancelConfirm = false; render(); container().querySelector('#cwl-demo-cancel')?.focus({ preventScroll: true }); }
@@ -266,13 +282,7 @@
       else if (['refresh', 'retry'].includes(action)) void loadSeason();
       else if (action === 'export') onExport();
     });
-    container().addEventListener('submit',event=>{if(event.target.id==='cwl-login-form'){event.preventDefault();void login(event.target);}});
     container().addEventListener('keydown', event => {
-      if(state.loginOpen&&event.key==='Escape'&&!state.loginBusy){event.preventDefault();state.loginOpen=false;state.loginEmail='';render();return;}
-      if(state.loginOpen&&event.key==='Tab'){
-        const fields=[...container().querySelectorAll('#cwl-login-form input, #cwl-login-form button')].filter(n=>!n.disabled);
-        if(fields.length){const first=fields[0],last=fields.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}return;
-      }
       if (state.demoCancelConfirm && event.key === 'Escape') { event.preventDefault(); state.demoCancelConfirm = false; render(); container().querySelector('#cwl-demo-cancel')?.focus({ preventScroll: true }); return; }
       if (state.demoCancelConfirm && event.key === 'Tab') {
         const actions = Array.from(container().querySelectorAll('.cwl-confirm-dialog [data-cwl-action]'));
@@ -310,7 +320,7 @@
         p.meritScore, p.assessedOpportunities, p.fulfilled, p.averageCreditedStars, p.averageDestruction, p.averageDuration, p.status]);
       return rows.length ? [['Posição', 'Jogador', 'Tag', 'Mérito', 'Oportunidades avaliadas', 'Missões cumpridas', 'Média estrelas novas', 'Destruição média (%)', 'Duração média (s)', 'Situação'], ...rows] : [];
     }
-    const plan = state.plan; if (!plan) return [];
+    const plan = state.plan; if (!plan || !canEdit() && !plan.effective && !plan.retrospective) return [];
     const assignments = plan.effective?.assignments || plan.current?.assignments || plan.initial?.assignments || [];
     const rows = (plan.initial?.participants || []).flatMap(p => {
       const hit = plan.outcomes?.find(h => h.attackerTag === p.tag);
@@ -327,7 +337,7 @@
     const text = value == null ? '' : typeof value === 'number' ? value.toLocaleString('pt-BR', { useGrouping: false, maximumFractionDigits: 6 }) : String(value).replace(/[\t\r\n]/g, ' ');
     return /^[=+@-]/.test(text) ? "'" + text : text;
   };
-  window.CwlApp = { init, state, setContext,
+  window.CwlApp = { init, state, setContext, signIn, signOut, loadSession, canEdit,
     setActive(value) { active = value; if (active && !loaded && !state.loading) void loadSeason(); },
     canCopy: () => exportRows().length > 1,
     exportTSV: () => exportRows().map(row => row.map(tsvCell).join('\t')).join('\r\n'),
