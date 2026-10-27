@@ -3,7 +3,7 @@
 A aba **Liga CWL** no computador e **CWL** na navegação do celular reúne duas visões:
 
 - **Plano do dia:** edição, confronto por data/adversário, atacante, número e nome do alvo, meta e resultado. Cada linha mostra ATQ do atacante e DEF do alvo; tocar ou clicar na nota abre sua explicação, inclusive por teclado. Ataques concluídos exibem as estrelas com ícones, a destruição e a duração numa faixa única abaixo do confronto. O botão **Editar** habilita a edição direta: tocar no alvo abre as opções com DEF, a meta é escolhida num menu e conflitos de alvo mostram com quem ele se repete. Não há expansão por jogador.
-- **Ranking de mérito:** posição e nota, missões cumpridas, média de estrelas novas e desempates. Abrir um jogador mostra a regularização da nota, cada oportunidade, parcelas 80/15/5 e dados utilizados. Os valores completos de desempate ficam nos detalhes.
+- **Ranking dos jogadores:** posição e nota de mérito, missões cumpridas, média de estrelas novas e desempates. Abrir um jogador mostra a regularização da nota, cada oportunidade, parcelas 80/15/5 e dados utilizados. Os valores completos de desempate ficam nos detalhes.
 
 O visual mantém a identidade existente. A lista vira uma composição vertical no celular, com controles de toque, navegação por teclado nas abas e detalhes nativos no ranking. Avisos e fórmulas são apresentados em camadas para preservar a leitura da lista.
 
