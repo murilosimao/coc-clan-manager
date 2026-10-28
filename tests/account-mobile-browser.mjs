@@ -7,7 +7,7 @@ const demo=JSON.parse(fs.readFileSync(new URL('../public/portal/demo.json',impor
 const source=fs.readFileSync(new URL('../public/portal/clan-api.js',import.meta.url),'utf8');
 const browser=await chromium.launch();
 try {
- const page=await browser.newPage();let passwordCalls=0;
+ const page=await browser.newPage();await page.addInitScript(()=>{if(!localStorage.getItem('coc-clan-context-v1'))localStorage.setItem('coc-clan-context-v1',JSON.stringify({version:1,tag:'2G8QCR92V'}));});let passwordCalls=0;
  await page.route('**/portal/clan-api.js',route=>route.fulfill({contentType:'application/javascript',body:source+`\nwindow.ClanAPI.loadClan=async tag=>({clan:{name:'Clã '+tag},members:${JSON.stringify(demo.members)},lastWar:null,currentWar:null,warnings:[],fetchedAt:new Date().toISOString()});`}));
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
@@ -50,7 +50,7 @@ try {
  // Distinct local settings survive clan switches and reloads.
  await page.goto(origin+'/?view=team');await page.locator('.team-rules').waitFor();
  await page.locator('.team-rules').click();await page.locator('[data-setting=rankBy]').selectOption('name');
- const switchClan=async tag=>{await page.locator('#open-clan').click();await page.locator('#clan-input').fill(tag);await page.locator('#clan-form').evaluate(f=>f.requestSubmit());await page.waitForFunction(t=>document.querySelector('#clan-tag').textContent==='#'+t,tag);await page.locator('.team-rules').click();};
+ const switchClan=async tag=>{await page.locator('#open-clan').click();await page.locator(`[data-clan-choice="${tag}"]`).click();await page.waitForFunction(t=>document.querySelector('#clan-tag').textContent==='#'+t,tag);await page.locator('#rules-view:not([hidden])').waitFor();};
  await switchClan('2CQ9CR2YP');assert.equal(await page.locator('[data-setting=rankBy]').inputValue(),'activity');
  await page.locator('[data-setting=rankBy]').selectOption('th');
  await switchClan('2G8QCR92V');assert.equal(await page.locator('[data-setting=rankBy]').inputValue(),'name');

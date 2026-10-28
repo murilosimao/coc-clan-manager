@@ -2,6 +2,8 @@
 (function () {
   'use strict';
   const E = window.WarEngine;
+  const C = window.ClanContexts;
+  let contextReady = false, pendingClan = null, initialView = 'team';
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
   const esc = E.esc;
@@ -30,7 +32,7 @@
   function loadSettings() {
     try {
       const legacy = JSON.parse(localStorage.getItem(storageKey) || '{}');
-      if (/^[0289PYLQGRJCUV]{3,15}$/.test(E.normalizeTag(legacy.clanTag))) state.clanTag = E.normalizeTag(legacy.clanTag);
+      if (C.find(legacy.clanTag)) state.clanTag = C.find(legacy.clanTag).tag;
       loadClanSettings(state.clanTag, legacy);
     } catch { /* Storage is optional. */ }
   }
@@ -125,8 +127,8 @@
     updateSelection(); renderHeader(); renderStatus(); renderTeam(); renderRules(); renderWar();
     updateCopyControl();
     $('#refresh').disabled = state.loading || state.view === 'cwl' && Boolean(window.CwlApp.state.loading);
-    if (!$('#clan-dialog').open) $('#clan-input').value = '#' + state.clanTag;
-    $('#clan-form button[type=submit]').disabled = state.loading;
+    $('#open-clan').disabled = state.loading || Boolean(window.CwlApp.state.saveBusy);
+    if ($('#clan-dialog').open) renderClanOptions();
     $('#source-info').innerHTML = `<h3>Sobre os dados</h3><p>${state.source === 'demo' ? 'Demonstração de 20/10/2026. Esta captura não representa o clã em tempo real.' : 'Os escudos e membros vêm dos perfis públicos do jogo. O desempenho usa a última guerra concluída; sem registro, o jogador permanece elegível. As fontes podem apresentar atraso de atualização; o cache dura até 1 minuto.'}</p>${state.settings.usePlayerHistoryFallback ? '<p>Quando ativado, o histórico pessoal da última guerra normal concluída é usado somente para quem não tem registro na última guerra do clã.</p>' : ''}${state.fetchedAt ? `<p>Última consulta: ${esc(new Date(state.fetchedAt).toLocaleString('pt-BR'))}.</p>` : ''}`;
   }
   function updateCopyControl() {
@@ -142,8 +144,14 @@
     $('#refresh').disabled = state.loading || state.view === 'cwl' && Boolean(window.CwlApp.state.loading);
   }
   function renderHeader() {
+    $('#open-clan').disabled = state.loading || Boolean(window.CwlApp.state.saveBusy);
     $('#clan-name').textContent = state.clanName || (state.loading ? 'Convocando os dados…' : 'Seu clã. Seu próximo time.');
     $('#clan-tag').textContent = '#' + state.clanTag;
+    const context = C.find(state.clanTag);
+    $('#context-name').textContent = contextReady && context ? context.name : 'Escolher clã';
+    $('#context-badge').src = context?.badge || C.clans[0].badge;
+    $('#context-badge').hidden = !contextReady;
+    $('#open-clan').setAttribute('aria-label', contextReady && context ? 'Trocar clã. Atual: ' + context.name : 'Escolher clã');
     $('#clan-eyebrow').textContent = state.view === 'cwl' ? state.source === 'demo' ? 'CWL · DEMONSTRAÇÃO' : 'LIGA DE GUERRAS' : state.source === 'demo' ? 'DEMONSTRAÇÃO · 20 OUT 2026' : 'PREPARAÇÃO DE GUERRA';
     $('#data-freshness').textContent = state.loading ? 'Consultando o clã' : state.fetchedAt ? `Atualizado às ${new Date(state.fetchedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : state.source === 'demo' ? 'Dados de demonstração' : 'Dados ainda não carregados';
     if (state.view === 'cwl') {
@@ -473,11 +481,11 @@
   async function loadClan(tag = state.clanTag) {
     if (state.loading) return;
     const normalized = E.normalizeTag(tag);
-    if (!/^[0289PYLQGRJCUV]{3,15}$/.test(normalized)) { toast('Digite uma tag de clã válida, como #2G8QCR92V.'); return; }
+    if (!C.find(normalized)) { toast('Escolha PuroSangue ou SanguePuro.'); return; }
     audit('clan_load_started');
     window.ScoreUI.reset();
-    if (normalized !== state.clanTag) { saveSettings(); loadClanSettings(normalized); }
-    state.clanTag = normalized; state.clanName = ''; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
+    if (normalized !== state.clanTag) { saveSettings(); loadClanSettings(normalized); state.query = ''; state.filter = 'selected'; }
+    state.clanTag = normalized; state.clanName = C.find(normalized).name; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
     window.CwlApp.setContext(normalized, false);
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false; state.historyLookupWarning = '';
     state.source = ''; state.dataWarnings = []; state.fetchedAt = ''; state.error = ''; state.loading = true;
@@ -664,11 +672,50 @@
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${cwl ? 'cwl-' + window.CwlApp.state.activeTab : 'time'}-${state.clanTag}-${new Date().toISOString().slice(0, 10)}.tsv`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
     audit('selection_exported'); toast('TSV baixado. Abra no Excel ou em outra planilha.');
   }
-  function openClan() {
-    dialogOpener = document.activeElement; $('#clan-input').value = '#' + state.clanTag;
-    $('#clan-dialog').showModal();
+  function renderClanOptions() {
+    $('#close-clan').hidden = !contextReady;
+    $('#dialog-title').textContent = contextReady ? 'Trocar clã' : 'Escolha o clã';
+    $('#clan-options').innerHTML = C.clans.map(clan => {
+      const current = contextReady && clan.tag === state.clanTag;
+      return `<button type="button" class="clan-choice ${current ? 'is-current' : ''}" data-clan-choice="${clan.tag}" aria-label="Entrar no clã ${esc(clan.name)}, #${clan.tag}" aria-pressed="${current}" ${state.loading || window.CwlApp.state.saveBusy ? 'disabled' : ''}><img src="${clan.badge}" alt="Brasão de ${esc(clan.name)}" width="88" height="88"><span class="clan-choice-copy"><strong>${esc(clan.name)}</strong><span>${esc(clan.label)}</span><small>#${clan.tag}</small>${current ? '<em>Em uso</em>' : ''}</span>${icon('arrow')}</button>`;
+    }).join('');
   }
-  function closeClan() { $('#clan-dialog').close(); dialogOpener?.focus(); }
+  function openClan() {
+    dialogOpener = document.activeElement; pendingClan = null;
+    $('#clan-switch-warning').hidden = true;
+    renderClanOptions();
+    if (!$('#clan-dialog').open) $('#clan-dialog').showModal();
+    $('#dialog-title').focus({ preventScroll: true });
+  }
+  function closeClan() {
+    if (!contextReady) return;
+    $('#clan-dialog').close(); pendingClan = null;
+    $('#clan-switch-warning').hidden = true;
+    dialogOpener?.focus({ preventScroll: true });
+  }
+  function rememberClan(tag) {
+    const saved = C.save(tag);
+    const url = new URL(location.href); url.searchParams.set('clan', tag); url.searchParams.delete('demo');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+    if (!saved) toast('A escolha vale nesta visita, mas o navegador não permitiu salvá-la.');
+  }
+  function chooseClan(tag, discard = false) {
+    const context = C.find(tag);
+    if (!context || state.loading || window.CwlApp.state.saveBusy) return;
+    if (contextReady && context.tag === state.clanTag && state.source !== 'demo') { rememberClan(context.tag); closeClan(); return; }
+    if (!discard && window.CwlApp.state.demoEditMode) {
+      pendingClan = context.tag; $('#clan-switch-warning').hidden = false;
+      $('#confirm-clan-switch').focus(); return;
+    }
+    const first = !contextReady;
+    contextReady = true; document.body.dataset.contextRequired = 'false';
+    rememberClan(context.tag); closeClan();
+    void loadClan(context.tag);
+    setView(first ? initialView : state.view, false);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    $('#clan-name').tabIndex = -1; $('#clan-name').focus({ preventScroll: true });
+    maybeLogin();
+  }
   function renderLeaderAccess() {
     const cwl = window.CwlApp.state, editor = cwl.editor, node = $('#leader-access');
     node.hidden = cwl.demo;
@@ -739,14 +786,16 @@
     $('#refresh').addEventListener('click', () => state.view === 'cwl' ? window.CwlApp.refresh() : loadClan());
     $('#open-clan').addEventListener('click', openClan);
     $('#close-clan').addEventListener('click', closeClan);
+    $('#clan-dialog').addEventListener('cancel', event => { event.preventDefault(); closeClan(); });
+    $('#clan-options').addEventListener('click', event => { const choice = event.target.closest('[data-clan-choice]'); if (choice && !choice.disabled) chooseClan(choice.dataset.clanChoice); });
+    $('#confirm-clan-switch').addEventListener('click', () => chooseClan(pendingClan, true));
+    $('#cancel-clan-switch').addEventListener('click', () => { closeClan(); });
     $('#leader-access').addEventListener('click', openLeader);
     $('#close-leader').addEventListener('click', closeLeader);
     $('#leader-dialog').addEventListener('cancel', (event) => { if (leaderState.busy) event.preventDefault(); });
     $('#leader-dialog').addEventListener('click', (event) => { if (event.target === $('#leader-dialog')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeLeader(); } });
     $('#leader-dialog').addEventListener('submit', (event) => { if (event.target.id === 'leader-form') { event.preventDefault(); signInLeader(event.target); } else if (event.target.id === 'password-form') { event.preventDefault(); changePassword(event.target); } });
     $('#clan-dialog').addEventListener('click', (event) => { if (event.target === $('#clan-dialog')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeClan(); } });
-    $('#clan-form').addEventListener('submit', (event) => { event.preventDefault(); const tag = E.normalizeTag($('#clan-input').value); if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag)) { $('#clan-input').setCustomValidity('Use uma tag válida de clã.'); $('#clan-input').reportValidity(); return; } closeClan(); setView('team', false); loadClan(tag); });
-    $('#clan-input').addEventListener('input', () => $('#clan-input').setCustomValidity(''));
     $('#mobile-copy').addEventListener('click', copySelection);
     document.addEventListener('click', (event) => {
       const button = event.target.closest('button'); if (!button || button.disabled) return;
@@ -782,16 +831,26 @@
   window.ScoreUI.init(() => { if (state.view === 'war') renderWar(); });
   loadSettings();
   const params = new URLSearchParams(location.search);
-  const requestedClan=String(params.get('clan')||'').replace(/^#/,'').toUpperCase();
-  if(/^[0289PYLQGRJCUV]{3,15}$/.test(requestedClan)){state.clanTag=requestedClan;$('#clan-input').value=requestedClan;}
-  window.CwlApp.init({ clanTag: params.get('demo') === '1' ? E.DEFAULT_CLAN : state.clanTag, demo: params.get('demo') === '1',
+  const demo = params.get('demo') === '1';
+  const requested = params.has('clan') ? C.find(params.get('clan')) : C.read();
+  contextReady = demo || Boolean(requested);
+  if (requested && requested.tag !== state.clanTag && !demo) { saveSettings(); loadClanSettings(requested.tag); state.clanTag = requested.tag; }
+  if (demo) state.clanTag = E.DEFAULT_CLAN;
+  if (contextReady && !demo) rememberClan(state.clanTag);
+  initialView = params.get('view') === 'cwl' || params.has('login') ? 'cwl' : 'team';
+  document.body.dataset.contextRequired = String(!contextReady);
+  window.CwlApp.init({ clanTag: demo ? E.DEFAULT_CLAN : state.clanTag, demo,
     activeTab: params.get('tab'), onChange: () => { updateCopyControl(); renderLeaderAccess(); if (state.view === 'cwl') renderHeader(); }, exportData: copySelection, requestLogin: openLeader });
-  bindEvents(); render(); setView(params.get('view') === 'cwl' || params.has('login') ? 'cwl' : 'team', false); audit('page_view');
-  // Pages sends leaders to the API origin with login=1; open the form once the session is known.
-  const loginRequested = params.get('login') === '1' && params.get('demo') !== '1';
-  if (params.has('login')) { params.delete('login'); history.replaceState(null, '', location.pathname + (params.size ? '?' + params : '') + location.hash); }
-  window.CwlApp.loadSession().then(() => { if (loginRequested && !window.CwlApp.state.editor) openLeader(); });
-  // Deterministic demo is available for design review; live failures never trigger it.
-  if (new URLSearchParams(location.search).get('demo') === '1') loadDemo(); else loadClan();
+  bindEvents(); render(); setView(contextReady ? initialView : 'team', false); audit('page_view');
+  let loginPending = params.get('login') === '1' && !demo;
+  if (params.has('login')) { const url = new URL(location.href); url.searchParams.delete('login'); history.replaceState(null, '', url.pathname + url.search + url.hash); }
+  const sessionReady = window.CwlApp.loadSession();
+  function maybeLogin() {
+    if (!contextReady || !loginPending) return;
+    loginPending = false;
+    sessionReady.then(() => { if (!window.CwlApp.state.editor) openLeader(); });
+  }
+  maybeLogin();
+  if (demo) loadDemo(); else if (contextReady) loadClan(); else openClan();
   window.ClanManager = { state, selectionTSV, loadClan };
 })();
