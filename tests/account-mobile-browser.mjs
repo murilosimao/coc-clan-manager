@@ -12,7 +12,7 @@ try {
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
   let data={};
-  if(path.endsWith('/auth/session'))data={authenticated:true,editor:{id:'test-leader',role:'leader',clanTag:'2G8QCR92V'}};
+  if(path.endsWith('/auth/session'))data={authenticated:true,editor:{id:'test-leader',role:'leader',clanTag:'2G8QCR92V',clanTags:['2G8QCR92V','2CQ9CR2YP']}};
   else if(path.endsWith('/auth/password')){passwordCalls++;const body=route.request().postDataJSON();assert.equal(body.currentPassword,'test-current');assert.equal(body.newPassword,'test-new-password');data={ok:true};}
   else if(path.includes('/seasons/'))data={rounds:[],entries:[]};
   await route.fulfill({json:data});
@@ -49,10 +49,10 @@ try {
  }
  // Distinct local settings survive clan switches and reloads.
  await page.goto(origin+'/?view=team');await page.locator('.team-rules').waitFor();
- await page.locator('.team-rules').click();await page.locator('[data-setting=rankBy]').selectOption('name');
+ await page.locator('.team-rules').click();await page.locator('[data-setting=rankBy]').selectOption('name');await page.waitForFunction(()=>window.ClanManager.state.settings.rankBy==='name');
  const switchClan=async tag=>{await page.locator('#open-clan').click();await page.locator(`[data-clan-choice="${tag}"]`).click();await page.waitForFunction(t=>document.querySelector('#clan-tag').textContent==='#'+t,tag);await page.locator('#rules-view:not([hidden])').waitFor();};
  await switchClan('2CQ9CR2YP');assert.equal(await page.locator('[data-setting=rankBy]').inputValue(),'activity');
- await page.locator('[data-setting=rankBy]').selectOption('th');
+ await page.locator('[data-setting=rankBy]').selectOption('th');await page.waitForFunction(()=>window.ClanManager.state.settings.rankBy==='th');
  await switchClan('2G8QCR92V');assert.equal(await page.locator('[data-setting=rankBy]').inputValue(),'name');
  await switchClan('2CQ9CR2YP');assert.equal(await page.locator('[data-setting=rankBy]').inputValue(),'th');
  await page.reload();await page.locator('.team-rules').waitFor();await page.locator('.team-rules').click();assert.equal(await page.locator('[data-setting=rankBy]').inputValue(),'th');

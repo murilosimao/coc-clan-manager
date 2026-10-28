@@ -28,6 +28,33 @@
   let toastTimer;
   let dialogOpener;
   let leaderOpener;
+  let rosterBusy = false, rosterAccessKey = '';
+  const manualRosterKeys = ['forcedIn', 'forcedOut', 'whitelist', 'blacklist'];
+  function canEditRoster() {
+    const editor = window.CwlApp.state.editor;
+    return Boolean(editor && ['leader', 'coLeader'].includes(editor.role)
+      && (editor.clanTags || [editor.clanTag]).includes(state.clanTag));
+  }
+  // These are local suggestions, never a shared or official roster. Recheck
+  // the server session before each edit, including expiry/revoked membership.
+  async function authorizeRosterEdit() {
+    if (rosterBusy || state.loading || state.historyLoading) return false;
+    if (!canEditRoster()) { toast('Entre com uma conta autorizada deste clã para alterar a sugestão.'); return false; }
+    rosterBusy = true;
+    const clan = state.clanTag;
+    try {
+      await window.CwlApp.loadSession();
+      if (clan === state.clanTag && canEditRoster()) return true;
+      toast('Sua sessão não permite alterar este clã. Entre novamente.');
+      return false;
+    } finally { rosterBusy = false; }
+  }
+  async function restoreRoster() {
+    if (!await authorizeRosterEdit()) return;
+    if (!window.confirm('Restaurar a sugestão pelos critérios do clã? Inclusões, remoções, prioridades e bloqueios deste navegador serão descartados.')) return;
+    for (const key of manualRosterKeys) state.settings[key] = [];
+    saveSettings(); render(); toast('Sugestão padrão restaurada.');
+  }
 
   function loadSettings() {
     try {
@@ -47,6 +74,12 @@
           if (Array.isArray(value)) state.settings[key] = value.filter((tag) => typeof tag === 'string').map(E.normalizeTag);
         } else if (value != null && typeof value === typeof E.DEFAULT_SETTINGS[key]) state.settings[key] = value;
       }
+      // Before authentication was enforced anyone could accidentally persist
+      // these lists. Reset them once per clan; retain that clan's criteria.
+      if (saved.manualRosterVersion !== 1) {
+        for (const key of manualRosterKeys) state.settings[key] = [];
+        localStorage.setItem(storageKey + ':' + tag, JSON.stringify({ ...state.settings, selectionRulesVersion: 2, manualRosterVersion: 1 }));
+      }
       if (Number(saved.selectionRulesVersion) < 2) {
         // The previous release required triples, excluded players without data,
         // and defaulted to the largest team. Keep personal lists, migrate rules.
@@ -56,7 +89,7 @@
   }
   function saveSettings() {
     try {
-      localStorage.setItem(storageKey + ':' + state.clanTag, JSON.stringify({ ...state.settings, selectionRulesVersion: 2 }));
+      localStorage.setItem(storageKey + ':' + state.clanTag, JSON.stringify({ ...state.settings, selectionRulesVersion: 2, manualRosterVersion: 1 }));
       localStorage.setItem(storageKey, JSON.stringify({ clanTag: state.clanTag }));
     } catch { /* Storage is optional. */ }
   }
@@ -210,7 +243,7 @@
     const labels = { selected: 'Convocados', bench: 'Reserva', all: 'Todos' };
     container.innerHTML = `${summary()}<div class="workspace-grid"><section class="roster-panel" aria-labelledby="team-title"><div class="section-heading"><div><div class="eyebrow">TIME DE GUERRA</div><h2 id="team-title" tabindex="-1">Escalação sugerida</h2></div><button type="button" class="button primary desktop-copy" data-command="copy" ${state.loading || state.historyLoading ? 'disabled' : ''}>${icon('copy')}Copiar para Excel</button></div><button type="button" class="button secondary team-rules" data-view="rules">${icon('sliders')} Critérios do time</button>
       <div class="roster-toolbar"><div class="segments" role="group" aria-label="Jogadores exibidos">${Object.keys(labels).map((filter) => `<button type="button" data-filter="${filter}" aria-pressed="${state.filter === filter}">${labels[filter]}<span>${counts[filter]}</span></button>`).join('')}</div><div class="search-export"><label class="search-field">${icon('search')}<input type="search" id="roster-search" aria-label="Buscar jogador por nome ou tag" placeholder="Buscar jogador" autocomplete="off" value="${esc(state.query)}"></label><button type="button" class="button secondary export-button" data-command="export" aria-label="Baixar escalação em TSV" title="Baixar TSV para Excel" ${state.loading || state.historyLoading ? 'disabled' : ''}>${icon('download')}<span>TSV</span></button></div></div>
-      <div id="roster-content"></div><div class="roster-footnote">${icon('shield')}Escudos indicam a preferência no jogo. Os ajustes aqui alteram apenas a sugestão.</div></section>${renderRail()}</div>`;
+      <div id="roster-content"></div><div class="roster-footnote">${icon('shield')}Escudos indicam a preferência no jogo. Os ajustes ficam neste navegador e alteram apenas a sugestão.</div>${canEditRoster() ? '<button type="button" class="button secondary" data-command="reset-roster">Restaurar sugestão padrão</button>' : '<p class="settings-note">Somente a liderança logada pode alterar a sugestão. <button type="button" class="text-button" data-command="roster-login">Entrar para editar</button></p>'}</section>${renderRail()}</div>`;
     renderRoster();
   }
   function renderRail() {
@@ -227,6 +260,7 @@
   }
   function rowAction(row, selected) {
     const tag = esc(row.member.tag);
+    if (!canEditRoster()) return '';
     if (selected) return `<button type="button" class="icon-button roster-action remove" data-action="force-out" data-tag="${tag}" aria-label="Tirar ${esc(row.member.name)} do time" title="Tirar do time">${icon('minus')}</button>`;
     if (row.hardFail) return `<span class="locked-action" title="Bloqueado no time atual; escudo vermelho só entra como última opção para completar uma guerra arredondada para cima">${icon('shield')}</span>`;
     return `<button type="button" class="icon-button roster-action" data-action="${row.forcedOut ? 'clear-force' : 'force-in'}" data-tag="${tag}" aria-label="${row.forcedOut ? 'Desfazer remoção de' : 'Incluir no time'} ${esc(row.member.name)}" title="${row.forcedOut ? 'Desfazer remoção' : 'Incluir no time'}">${icon('plus')}</button>`;
@@ -244,23 +278,23 @@
         : row.usedPersonalHistory
           ? `Sem participação registrada na última guerra do clã.${historyShownInReason ? '' : ` ${personalHistoryDetail(row.historyWar)}`}`
           : 'Sem participação registrada na última guerra do clã. A ausência de registro não exclui o jogador.';
-      return `<article class="player-row ${isSelected ? 'is-selected' : ''}" data-player="${esc(member.tag)}"><div class="player-line"><div class="player-identity">${townHall(member.th)}<div class="player-name"><h3>${esc(member.name)}</h3><span>${esc(roleNames[member.role] || member.role || 'Membro')}<i> · </i>#${member.position ?? '—'} no clã</span></div></div><div class="player-availability">${shield(member.pref)}</div>${attackMetric(row.perf?.firstAttackStars, '1º ataque')}${attackMetric(row.perf?.secondAttackStars, '2º ataque')}<div class="player-stat gold-stat"><b>${row.inWar ? row.perf.stars : '—'}</b><span>total</span></div><div class="player-reason"><span class="reason ${why.tone}"><i class="dot ${why.tone}"></i>${why.label}</span></div><div class="player-action">${rowAction(row, isSelected)}</div></div><details class="player-details" data-expand="${esc(member.tag)}" ${state.expanded.has(member.tag) ? 'open' : ''}><summary><span>Ver detalhes</span>${icon('chevron')}</summary><div class="player-detail-content"><div class="detail-copy"><span class="tag-code">#${esc(member.tag)}</span><p>${esc(why.detail)}</p><p class="muted">${esc(previousWarDetail)}</p></div><div class="player-options"><button type="button" class="button small secondary" data-stats="${esc(member.tag)}">${icon('star')}Histórico e estatísticas</button><button type="button" class="button small ${row.whitelisted ? 'active-option' : 'secondary'}" data-action="priority" data-tag="${esc(member.tag)}" aria-pressed="${row.whitelisted}">${icon('flag')}${row.whitelisted ? 'Prioridade ativa' : 'Priorizar jogador'}</button><button type="button" class="button small ${row.blacklisted ? 'danger' : 'secondary'}" data-action="block" data-tag="${esc(member.tag)}" aria-pressed="${row.blacklisted}">${icon('x')}${row.blacklisted ? 'Remover bloqueio' : 'Bloquear no time'}</button></div></div></details></article>`;
+      return `<article class="player-row ${isSelected ? 'is-selected' : ''}" data-player="${esc(member.tag)}"><div class="player-line"><div class="player-identity">${townHall(member.th)}<div class="player-name"><h3>${esc(member.name)}</h3><span>${esc(roleNames[member.role] || member.role || 'Membro')}<i> · </i>#${member.position ?? '—'} no clã</span></div></div><div class="player-availability">${shield(member.pref)}</div>${attackMetric(row.perf?.firstAttackStars, '1º ataque')}${attackMetric(row.perf?.secondAttackStars, '2º ataque')}<div class="player-stat gold-stat"><b>${row.inWar ? row.perf.stars : '—'}</b><span>total</span></div><div class="player-reason"><span class="reason ${why.tone}"><i class="dot ${why.tone}"></i>${why.label}</span></div><div class="player-action">${rowAction(row, isSelected)}</div></div><details class="player-details" data-expand="${esc(member.tag)}" ${state.expanded.has(member.tag) ? 'open' : ''}><summary><span>Ver detalhes</span>${icon('chevron')}</summary><div class="player-detail-content"><div class="detail-copy"><span class="tag-code">#${esc(member.tag)}</span><p>${esc(why.detail)}</p><p class="muted">${esc(previousWarDetail)}</p></div><div class="player-options"><button type="button" class="button small secondary" data-stats="${esc(member.tag)}">${icon('star')}Histórico e estatísticas</button>${canEditRoster() ? `<button type="button" class="button small ${row.whitelisted ? 'active-option' : 'secondary'}" data-action="priority" data-tag="${esc(member.tag)}" aria-pressed="${row.whitelisted}">${icon('flag')}${row.whitelisted ? 'Prioridade ativa' : 'Priorizar jogador'}</button><button type="button" class="button small ${row.blacklisted ? 'danger' : 'secondary'}" data-action="block" data-tag="${esc(member.tag)}" aria-pressed="${row.blacklisted}">${icon('x')}${row.blacklisted ? 'Remover bloqueio' : 'Bloquear no time'}</button>` : ''}</div></div></details></article>`;
     }).join('')}</div>` : `<div class="empty-search">${icon('search')}<h3>Nenhum jogador encontrado</h3><p>Tente outro nome, tag ou filtro.</p></div>`}<div class="list-count" aria-live="polite">${rows.length} ${rows.length === 1 ? 'jogador exibido' : 'jogadores exibidos'}${state.query ? ' nesta busca' : ''}</div>`;
     $$('#roster-content details').forEach((node) => node.addEventListener('toggle', () => { if (node.open) state.expanded.add(node.dataset.expand); else state.expanded.delete(node.dataset.expand); }));
   }
   function toggleSetting(key, title, description, name) {
-    return `<label class="rule-toggle"><span class="rule-symbol">${icon(name)}</span><span class="rule-copy"><strong>${title}</strong><small>${description}</small></span><input type="checkbox" data-setting="${key}" ${state.settings[key] ? 'checked' : ''} ${state.loading ? 'disabled' : ''}><span class="switch" aria-hidden="true"></span></label>`;
+    return `<label class="rule-toggle"><span class="rule-symbol">${icon(name)}</span><span class="rule-copy"><strong>${title}</strong><small>${description}</small></span><input type="checkbox" data-setting="${key}" ${state.settings[key] ? 'checked' : ''} ${state.loading || !canEditRoster() ? 'disabled' : ''}><span class="switch" aria-hidden="true"></span></label>`;
   }
   function fixedRule(title, description, name) {
     return `<div class="rule-toggle fixed-rule"><span class="rule-symbol">${icon(name)}</span><span class="rule-copy"><strong>${title}</strong><small>${description}</small></span><span class="rule-state">Sempre</span></div>`;
   }
   function selectField(key, label, options, disabled = false, helper = '') {
-    return `<label class="field"><span>${label}</span><select data-setting="${key}" ${disabled ? 'disabled' : ''}>${options.map(([value, text]) => `<option value="${value}" ${String(state.settings[key]) === String(value) ? 'selected' : ''}>${text}</option>`).join('')}</select>${helper ? `<small>${helper}</small>` : ''}</label>`;
+    return `<label class="field"><span>${label}</span><select data-setting="${key}" ${disabled || !canEditRoster() ? 'disabled' : ''}>${options.map(([value, text]) => `<option value="${value}" ${String(state.settings[key]) === String(value) ? 'selected' : ''}>${text}</option>`).join('')}</select>${helper ? `<small>${helper}</small>` : ''}</label>`;
   }
   function renderRules() {
     $('#rules-view').innerHTML = `<div class="view-heading"><div class="eyebrow">SUA ESTRATÉGIA</div><h2 id="rules-title" tabindex="-1">Os critérios do seu time.</h2><p>As regras seguem o desempenho da guerra anterior, sem penalizar quem ainda não tem registro.</p></div><div class="rules-layout"><section class="settings-panel"><div class="panel-heading"><span class="section-index">01</span><div><h3>Regras da convocação</h3><p>Escudo vermelho bloqueia a seleção normal; a exceção só é usada para fechar o tamanho da guerra.</p></div></div><div class="rule-list">${fixedRule('Escudo vermelho', 'Só entra como última opção quando o arredondamento para cima deixa vagas para completar.', 'shield')}${fixedRule('Dois ataques e ao menos 1 estrela', 'Aplicado a quem participou da última guerra concluída do clã.', 'swords')}${fixedRule('Sem registro da guerra anterior', 'Permanece elegível; falta de dados não é motivo para excluir.', 'users')}${toggleSetting('usePlayerHistoryFallback', 'Consultar histórico pessoal', 'Desligado por padrão. Se faltar registro do clã, consulta a última guerra normal concluída do jogador, inclusive em outro clã.', 'clock')}</div></section>
       <section class="settings-panel"><div class="panel-heading"><span class="section-index">02</span><div><h3>Fechar o tamanho da guerra</h3><p>O tamanho padrão é calculado pelos jogadores com escudo verde.</p></div></div><div class="fields-grid">${selectField('rankBy', 'Ordenar a lista por', [['activity', 'Atividade: troféus e ranking'], ['position', 'Posição no clã'], ['th', 'Centro da Vila mais alto'], ['performance', 'Desempenho na última guerra'], ['name', 'Nome do jogador']], state.loading, 'A opção de atividade prioriza troféus e posição no clã. O CV não define essa ordem.')}</div><p class="settings-note">${icon('alert')}Times válidos têm 5, 10, 15… até 50 jogadores. Ex.: 36/37 disponíveis viram 35; 38/39 viram 40. Ao completar, entram os próximos reforços pela atividade do clã (troféus e ranking), sem priorizar CV. Escudos vermelhos só entram por último se ainda houver vagas. Bloqueios manuais sempre valem.</p></section>
-      <section class="settings-panel priority-panel"><div class="panel-heading"><span class="section-index">03</span><div><h3>A palavra final é sua.</h3><p>Priorize ou bloqueie jogadores nos detalhes da lista.</p></div></div><div class="priority-counts"><span><b>${state.settings.whitelist.length}</b> na prioridade</span><span><b>${state.settings.blacklist.length}</b> bloqueados</span></div><p class="muted">A lista de prioridade pode superar critérios de desempenho, mas não remove bloqueios manuais. Escudos vermelhos só podem entrar pela regra de última opção para fechar uma guerra arredondada para cima. As listas de prioridade existentes são preservadas nas atualizações.</p><button type="button" class="button secondary" data-command="all-players">Gerenciar jogadores ${icon('arrow')}</button></section></div><button type="button" class="button primary rules-back" data-view="team">Ver time atualizado ${icon('arrow')}</button>`;
+      <section class="settings-panel priority-panel"><div class="panel-heading"><span class="section-index">03</span><div><h3>Ajustes da liderança</h3><p>Priorize ou bloqueie jogadores nos detalhes da lista.</p></div></div><div class="priority-counts"><span><b>${state.settings.whitelist.length}</b> na prioridade</span><span><b>${state.settings.blacklist.length}</b> bloqueados</span></div><p class="muted">A lista de prioridade pode superar critérios de desempenho, mas não remove bloqueios manuais. Escudos vermelhos só podem entrar pela regra de última opção para fechar uma guerra arredondada para cima. Os ajustes são locais a este navegador. Somente a liderança logada deste clã pode alterá-los.</p><button type="button" class="button secondary" data-command="all-players">Gerenciar jogadores ${icon('arrow')}</button></section></div><button type="button" class="button primary rules-back" data-view="team">Ver time atualizado ${icon('arrow')}</button>`;
   }
   function warStarSet(value, label) {
     const stars = Math.max(0, Math.min(3, Number(value) || 0));
@@ -552,10 +586,12 @@
     } catch (error) { state.error = error.message; }
     finally { state.loading = false; render(); }
   }
-  function handleSetting(target) {
+  async function handleSetting(target) {
     const key = target.dataset.setting;
-    if (!Object.hasOwn(E.DEFAULT_SETTINGS, key)) return;
-    state.settings[key] = target.type === 'checkbox' ? target.checked : target.value;
+    if (!['rankBy', 'usePlayerHistoryFallback'].includes(key)) return;
+    const value = target.type === 'checkbox' ? target.checked : target.value;
+    if (!await authorizeRosterEdit()) { renderRules(); return; }
+    state.settings[key] = value;
     saveSettings(); audit('setting_changed', { setting: key, value: state.settings[key] });
     if (key === 'usePlayerHistoryFallback') {
       if (state.settings.usePlayerHistoryFallback) void loadPersonalHistoryFallback();
@@ -566,10 +602,13 @@
     } else render();
     $(`[data-setting="${key}"]`)?.focus({ preventScroll: true });
   }
-  function adjustPlayer(action, tag) {
+  async function adjustPlayer(action, tag) {
+    if (!await authorizeRosterEdit()) return;
     const row = state.selection?.all.find((r) => r.member.tag === tag);
     if (!row) return;
-    const sets = Object.fromEntries(['forcedIn', 'forcedOut', 'whitelist', 'blacklist'].map((key) => [key, new Set(state.settings[key])]));
+    if ((action === 'force-out' || action === 'block' && !row.blacklisted)
+      && !window.confirm(`${action === 'block' ? 'Bloquear' : 'Remover'} ${row.member.name} da sugestão de guerra? Você pode desfazer depois.`)) return;
+    const sets = Object.fromEntries(manualRosterKeys.map((key) => [key, new Set(state.settings[key])]));
     let auditAction; let message;
     if (action === 'force-in') {
       if (row.hardFail) return;
@@ -718,6 +757,8 @@
   }
   function renderLeaderAccess() {
     const cwl = window.CwlApp.state, editor = cwl.editor, node = $('#leader-access');
+    const accessKey = state.clanTag + ':' + (canEditRoster() ? 'edit' : 'read');
+    if (rosterAccessKey !== accessKey) { rosterAccessKey = accessKey; renderTeam(); renderRules(); }
     node.hidden = cwl.demo;
     node.classList.toggle('is-signed', Boolean(editor));
     node.innerHTML = `${icon('crown')}<span>${editor ? leaderRoles[editor.role] || 'Liderança' : 'Liderança'}</span>`;
@@ -731,8 +772,8 @@
     const error = leaderState.error ? `<p class="leader-error" role="alert">${icon('alert')}<span>${esc(leaderState.error)}</span></p>` : '';
     $('#leader-title').textContent = editor ? 'Você está conectado' : 'Acesso da liderança';
     $('#leader-body').innerHTML = editor
-      ? `<div class="leader-session">${icon('crown')}<div><strong>${esc(leaderRoles[editor.role] || 'Liderança')} ${(editor.clanTags||[editor.clanTag]).map(tag=>'#'+esc(tag)).join(' · ')}</strong><small>Pode preparar, ajustar e aprovar o plano da CWL.</small></div></div>${error}<div class="leader-actions">${(editor.leaderClanTags|| (editor.role==='leader'?[editor.clanTag]:[])).length?`<button type="button" class="button secondary" data-command="leader-users" ${busy}>Gerenciar usuários</button>`:''}<button type="button" class="button primary" data-command="leader-open-cwl">Abrir plano da CWL ${icon('arrow')}</button><button type="button" class="button secondary" data-command="leader-sign-out" ${busy}>Sair da conta</button></div><details><summary>Alterar senha</summary><form id="password-form"><label class="field"><span>Senha atual</span><input name="currentPassword" type="password" autocomplete="current-password" required ${busy}></label><label class="field"><span>Nova senha</span><input name="newPassword" type="password" autocomplete="new-password" minlength="8" required ${busy}></label><label class="field"><span>Confirme a nova senha</span><input name="confirmation" type="password" autocomplete="new-password" minlength="8" required ${busy}></label><button type="submit" class="button secondary" ${busy}>Salvar nova senha</button></form></details>`
-      : `<p class="leader-intro">Para <strong>líder e colíderes</strong> prepararem, ajustarem e aprovarem o plano da CWL. Membros não precisam entrar: o plano aprovado fica visível para todos.</p><form id="leader-form"><label class="field" for="leader-email"><span>Email</span><input id="leader-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required value="${esc(leaderState.email)}" ${busy}></label><label class="field" for="leader-password"><span>Senha</span><input id="leader-password" name="password" type="password" autocomplete="current-password" required ${busy}></label>${error}<button type="submit" class="button primary" ${busy}>${leaderState.busy ? 'Entrando…' : 'Entrar'}</button></form><p class="leader-note">O acesso é liberado somente para contas autorizadas do clã.</p>`;
+      ? `<div class="leader-session">${icon('crown')}<div><strong>${esc(leaderRoles[editor.role] || 'Liderança')} ${(editor.clanTags||[editor.clanTag]).map(tag=>'#'+esc(tag)).join(' · ')}</strong><small>Pode ajustar a sugestão de guerra e preparar e aprovar o plano da CWL.</small></div></div>${error}<div class="leader-actions">${(editor.leaderClanTags|| (editor.role==='leader'?[editor.clanTag]:[])).length?`<button type="button" class="button secondary" data-command="leader-users" ${busy}>Gerenciar usuários</button>`:''}<button type="button" class="button primary" data-command="leader-open-cwl">Abrir plano da CWL ${icon('arrow')}</button><button type="button" class="button secondary" data-command="leader-sign-out" ${busy}>Sair da conta</button></div><details><summary>Alterar senha</summary><form id="password-form"><label class="field"><span>Senha atual</span><input name="currentPassword" type="password" autocomplete="current-password" required ${busy}></label><label class="field"><span>Nova senha</span><input name="newPassword" type="password" autocomplete="new-password" minlength="8" required ${busy}></label><label class="field"><span>Confirme a nova senha</span><input name="confirmation" type="password" autocomplete="new-password" minlength="8" required ${busy}></label><button type="submit" class="button secondary" ${busy}>Salvar nova senha</button></form></details>`
+      : `<p class="leader-intro">Para <strong>líder e colíderes</strong> prepararem, ajustarem a sugestão de guerra e aprovarem o plano da CWL. Membros não precisam entrar: o plano aprovado fica visível para todos.</p><form id="leader-form"><label class="field" for="leader-email"><span>Email</span><input id="leader-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required value="${esc(leaderState.email)}" ${busy}></label><label class="field" for="leader-password"><span>Senha</span><input id="leader-password" name="password" type="password" autocomplete="current-password" required ${busy}></label>${error}<button type="submit" class="button primary" ${busy}>${leaderState.busy ? 'Entrando…' : 'Entrar'}</button></form><p class="leader-note">O acesso é liberado somente para contas autorizadas do clã.</p>`;
   }
   function openLeader() {
     const loginUrl = window.ClanAPI.cwlLoginUrl;
@@ -802,6 +843,8 @@
       if (button.dataset.view) setView(button.dataset.view);
       if (button.dataset.stats) openStats(button.dataset.stats);
       if (button.dataset.statsType) { statsState.type = button.dataset.statsType; audit('player_stats_filter_changed'); renderStats(); }
+      if (button.dataset.command === 'roster-login') openLeader();
+      if (button.dataset.command === 'reset-roster') restoreRoster();
       if (button.dataset.command === 'stats') openStats();
       if (button.dataset.command === 'retry-stats') loadStats();
       if (button.dataset.filter) { state.filter = button.dataset.filter; renderTeam(); }
