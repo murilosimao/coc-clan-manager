@@ -18,7 +18,7 @@ try {
    localStorage.setItem('coc-clan-context-v1',JSON.stringify({version:1,tag:tags[0]}));
    for(const tag of tags)localStorage.setItem('clashspot-war-selector-v1:'+tag,JSON.stringify({selectionRulesVersion:2,rankBy:'name',usePlayerHistoryFallback:false,...Object.fromEntries(keys.map(k=>[k,['OLDPLAYER']]))}));
   },{tags,keys});
-  await page.route('**/portal/clan-api.js',r=>r.fulfill({contentType:'application/javascript',body:source+`\nwindow.ClanAPI.loadClan=async tag=>({clan:{name:tag},members:${JSON.stringify(demo.members)},lastWar:null,currentWar:null,warnings:[],fetchedAt:new Date().toISOString()});`}));
+  await page.route('**/portal/clan-api.js*',r=>r.fulfill({contentType:'application/javascript',body:source+`\nwindow.ClanAPI.loadClan=async tag=>({clan:{name:tag},members:${JSON.stringify(demo.members)},lastWar:null,currentWar:null,warnings:[],fetchedAt:new Date().toISOString()});`}));
   await page.route('**/api/**',async route=>{
    const path=new URL(route.request().url()).pathname;
    if(path.endsWith('/auth/session')){sessionCalls++;return route.fulfill({json:{authenticated:Boolean(editor),editor}});}

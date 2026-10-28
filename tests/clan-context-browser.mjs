@@ -11,7 +11,7 @@ const browser=await chromium.launch();
 async function setup(width=390,init){
  const context=await browser.newContext({viewport:{width,height:850}});if(init)await context.addInitScript(init);
  const page=await context.newPage();const errors=[],calls=[];page.on('pageerror',e=>errors.push(e.message));
- await page.route('**/portal/clan-api.js',r=>r.fulfill({contentType:'application/javascript',body:source+`\nwindow.__clanLoads=[];window.ClanAPI.loadClan=async tag=>{window.__clanLoads.push(tag);return{clan:{name:window.ClanContexts.find(tag).name},members:${JSON.stringify(demo.members)},lastWar:null,currentWar:null,warnings:[],fetchedAt:new Date().toISOString()};};`}));
+ await page.route('**/portal/clan-api.js*',r=>r.fulfill({contentType:'application/javascript',body:source+`\nwindow.__clanLoads=[];window.ClanAPI.loadClan=async tag=>{window.__clanLoads.push(tag);return{clan:{name:window.ClanContexts.find(tag).name},members:${JSON.stringify(demo.members)},lastWar:null,currentWar:null,warnings:[],fetchedAt:new Date().toISOString()};};`}));
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;calls.push(path);
   if(path.endsWith('/auth/session'))return route.fulfill({json:{authenticated:false}});
