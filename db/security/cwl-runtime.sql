@@ -47,6 +47,10 @@ DO $$ BEGIN
   IF to_regclass('cwl.plan_archives') IS NOT NULL THEN
     GRANT SELECT,INSERT ON cwl.plan_archives TO cwl_runtime;
   END IF;
+  IF to_regclass('cwl.war_archive') IS NOT NULL THEN
+    GRANT SELECT,INSERT ON cwl.war_archive TO cwl_runtime;
+    GRANT UPDATE(state,final,start_time,end_time,attacks_per_member,attacks_used,source,payload,observed_at) ON cwl.war_archive TO cwl_runtime;
+  END IF;
 END $$;
 
 -- The application role is not the table owner and cannot bypass RLS.

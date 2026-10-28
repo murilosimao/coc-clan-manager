@@ -7,7 +7,7 @@
 
   const DEFAULT_SETTINGS = {
     rankBy: 'activity',      // activity | position | th | performance | name
-    usePlayerHistoryFallback: false,
+    usePlayerHistoryFallback: true, // família primeiro, ClashKing só quando atualizado
     forcedIn: [],
     forcedOut: [],
     whitelist: [],           // sempre incluir (não fura escudo vermelho)
@@ -148,6 +148,9 @@
 
   function selectTeam(members, lastWar, settings, currentWar, personalHistoryByTag = new Map(), historyStatusByTag = new Map()) {
     const perfByTag = new Map((lastWar?.players || []).map((player) => [normalizeTag(player.tag), player]));
+    // A capture that stopped before the end is a lower bound: it can confirm
+    // the criteria, but missing attacks may have happened after it.
+    const partialCapture = lastWar?.captureComplete === false;
     const rank = makeRankFn(settings.rankBy);
     const activityRank = makeActivityRankFn();
     const forcedIn = new Set(settings.forcedIn || []);
@@ -179,10 +182,13 @@
       // permanece elegível; a ausência de dado não prova indisponibilidade.
       if (member.pref === 'out') hardReasons.push('escudo vermelho');
 
+      const failures = [];
       if (criteriaPerf) {
-        if (attacks < 2) softReasons.push(`menos de 2 ataques (${attacks}/2)`);
-        if (stars < 1) softReasons.push('0 estrelas na guerra anterior');
+        if (attacks < 2) failures.push(`menos de 2 ataques (${attacks}/2)`);
+        if (stars < 1) failures.push('0 estrelas na guerra anterior');
       }
+      const partialCaptureHold = partialCapture && Boolean(currentPerf) && failures.length > 0;
+      if (!partialCaptureHold) softReasons.push(...failures);
 
       const isForcedIn = forcedIn.has(member.tag);
       const isForcedOut = forcedOut.has(member.tag);
@@ -198,6 +204,7 @@
         historyWar: usedPersonalHistory ? historyWar : null,
         historyStatus: historyStatusByTag.get(normalizeTag(member.tag)) || '',
         usedPersonalHistory,
+        partialCaptureHold,
         inWar,
         attacks,
         stars,
