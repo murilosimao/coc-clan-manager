@@ -1,6 +1,7 @@
 import { CwlError,requireCondition,clanTag } from './errors.js';
 import { readBytes } from './archive.js';
 import { sealSession,openSession } from './session-crypto.js';
+import { memberships } from './access.js';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const cookieResponse=(data,cookies=[],status=200)=>{
@@ -29,7 +30,7 @@ export function requireSameOrigin(request,env){
   requireCondition(request.headers.get('Origin')===origin(request,env),403,'Faça esta operação pelo site autenticado.','csrf_origin');
 }
 
-export function createCwlAuth(fetcher=fetch){
+export function createCwlAuth(fetcher=fetch,{membershipReader=memberships}={}){
   async function call(env,path,{token,body,method='POST'}={}){
     const {url}=config(env),headers={apikey:env.SUPABASE_ANON_KEY,Accept:'application/json'};
     if(body)headers['Content-Type']='application/json';if(token)headers.Authorization='Bearer '+token;
@@ -39,7 +40,14 @@ export function createCwlAuth(fetcher=fetch){
     if(response.status===204)return null;
     try{return await response.json();}catch{throw new CwlError(503,'Resposta de autenticação inválida.','auth_unavailable');}
   }
-  function editor(env,user){
+  async function editor(env,user){
+    if(env.CWL_ACCESS_DB==='true'){
+      const rows=await membershipReader(env,user?.id);
+      requireCondition(rows.length>0,403,'Conta sem permissão para acessar a liderança.','editor_forbidden');
+      const leaders=rows.filter(r=>r.role==='leader').map(r=>clanTag(r.clan_tag));
+      const primary=rows.find(r=>r.role==='leader')||rows[0];
+      return {id:user.id,role:primary.role,clanTag:clanTag(primary.clan_tag),clanTags:rows.map(r=>clanTag(r.clan_tag)),leaderClanTags:leaders};
+    }
     const entry=config(env).editors[user?.id];
     requireCondition(entry&&['leader','coLeader'].includes(entry.role),403,'Conta sem permissão para alterar a CWL.','editor_forbidden');
     return {id:user.id,role:entry.role,clanTag:clanTag(entry.clanTag),...(entry.clanTags?{clanTags:[...new Set([clanTag(entry.clanTag),...entry.clanTags.map(clanTag)])]}:{})};
@@ -50,7 +58,9 @@ export function createCwlAuth(fetcher=fetch){
   }
   async function authorize(request,env,tag){
     if(request.method==='POST')requireSameOrigin(request,env);
-    const actor=await current(request,env);requireCondition((actor.clanTags||[actor.clanTag]).includes(tag),403,'Sua conta não pode alterar este clã.','clan_forbidden');return {...actor,clanTag:tag};
+    const actor=await current(request,env);requireCondition((actor.clanTags||[actor.clanTag]).includes(tag),403,'Sua conta não pode alterar este clã.','clan_forbidden');
+    const role=actor.leaderClanTags?actor.leaderClanTags.includes(tag)?'leader':'coLeader':actor.role;
+    return {...actor,role,clanTag:tag};
   }
   async function handle(request,env){
     const path=new URL(request.url).pathname;
@@ -65,7 +75,7 @@ export function createCwlAuth(fetcher=fetch){
       let data;try{data=JSON.parse(text);}catch{throw new CwlError(400,'Dados de login inválidos.');}
       requireCondition(typeof data.email==='string'&&data.email.length<=254&&data.email.includes('@')&&typeof data.password==='string'&&data.password.length>=1&&data.password.length<=1024,400,'Informe email e senha.');
       const session=await call(env,'token?grant_type=password',{body:{email:data.email,password:data.password}});
-      const who=editor(env,session.user);
+      const who=await editor(env,session.user);
       requireCondition(typeof session.access_token==='string'&&typeof session.refresh_token==='string',503,'Sessão inválida.');
       return cookieResponse({authenticated:true,editor:who},await cookies(request,env,session));
     }
@@ -75,7 +85,7 @@ export function createCwlAuth(fetcher=fetch){
       requireCondition(request.headers.get('Content-Type')?.startsWith('application/json'),415,'Envie application/json.');
       let data;try{data=JSON.parse(new TextDecoder().decode(await readBytes(request.body,4096)));}catch(error){if(error instanceof CwlError)throw error;throw new CwlError(400,'Dados inválidos.');}
       requireCondition(data&&typeof data.currentPassword==='string'&&data.currentPassword.length>0&&data.currentPassword.length<=1024&&typeof data.newPassword==='string'&&data.newPassword.length>=8&&data.newPassword.length<=1024,400,'Informe a senha atual e uma nova senha com pelo menos 8 caracteres.');
-      const user=await call(env,'user',{token,method:'GET'});editor(env,user);
+      const user=await call(env,'user',{token,method:'GET'});await editor(env,user);
       requireCondition(typeof user.email==='string',400,'A conta não possui email para confirmar a senha.');
       const fresh=await call(env,'token?grant_type=password',{body:{email:user.email,password:data.currentPassword}});
       requireCondition(fresh.user?.id===user.id,401,'Não foi possível confirmar a conta.');
@@ -92,7 +102,7 @@ export function createCwlAuth(fetcher=fetch){
       if(refresh&&error.status===401){
         try{
           const session=await call(env,'token?grant_type=refresh_token',{body:{refresh_token:refresh}});
-          const who=editor(env,session.user);
+          const who=await editor(env,session.user);
           return cookieResponse({authenticated:true,editor:who},await cookies(request,env,session));
         }catch(failure){if(failure.status===503||failure.status===429)throw failure;}
       }

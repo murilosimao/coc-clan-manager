@@ -2,6 +2,7 @@ import { createCwlHandler } from './router.js';
 import { createCwlAuth } from './auth.js';
 import { CwlError,requireCondition } from './errors.js';
 import { openSession } from './session-crypto.js';
+import { createUsersHandler } from './users.js';
 
 async function sameSecret(provided,expected){
   if(typeof expected!=='string'||expected.length<32)return false;
@@ -10,6 +11,7 @@ async function sameSecret(provided,expected){
 }
 export function createEdgeHandler(environment,{fetcher=fetch,provider,database,clock=Date.now}={}){
   const auth=createCwlAuth(fetcher);
+  const users=createUsersHandler(auth,{fetcher});
   const api=createCwlHandler({provider,database,clock,authorize:auth.authorize,browserPlans:true});
   return async request=>{
     try{
@@ -29,7 +31,7 @@ export function createEdgeHandler(environment,{fetcher=fetch,provider,database,c
       const local=new Request(app.origin+url.pathname.slice(index)+url.search,{method:request.method,headers,
         body:['GET','HEAD'].includes(request.method)?undefined:request.body,duplex:'half'});
       const options={...env,CWL_REQUIRE_RESTRICTED_DB:'true',CWL_PUBLIC_ORIGIN:app.origin};
-      return await auth.handle(local,options)||await api(local,options);
+      return await auth.handle(local,options)||await users(local,options)||await api(local,options);
     }catch(error){
       const known=error instanceof CwlError;
       return Response.json({error:known?error.message:'Não foi possível acessar a CWL.',code:known?error.code:'cwl_unavailable'},

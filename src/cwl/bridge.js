@@ -5,7 +5,7 @@ export async function bridgeCwl(request,env,fetcher=fetch) {
   const local=['127.0.0.1','localhost','[::1]'].includes(base.hostname);
   requireCondition(base.protocol==='https:'&&base.hostname.endsWith('.supabase.co')||local&&base.protocol==='http:',503,'Backend CWL não configurado.');
   requireCondition(typeof env.CWL_BACKEND_KEY==='string'&&env.CWL_BACKEND_KEY.length>=32,503,'Backend CWL não configurado.');
-  if(['/api/cwl/auth/login','/api/cwl/auth/password'].includes(original.pathname)) {
+  if(['/api/cwl/auth/login','/api/cwl/auth/password'].includes(original.pathname)||request.method==='POST'&&original.pathname.startsWith('/api/cwl/users')) {
     requireCondition(env.CWL_LOGIN_LIMITER||local,503,'Proteção de login não configurada.');
     if(env.CWL_LOGIN_LIMITER){const {success}=await env.CWL_LOGIN_LIMITER.limit({key:request.headers.get('CF-Connecting-IP')||'unknown'});requireCondition(success,429,'Muitas tentativas. Aguarde um minuto e tente novamente.');}
   }
