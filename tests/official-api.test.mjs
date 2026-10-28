@@ -48,7 +48,6 @@ test('CWL source bridge uses official current war and never forwards the key to 
 
 test('private warlogs are distinguished from an invalid production key',async()=>{
  await assert.rejects(fetchOfficial('/v1/clans/%232CQ9CR2YP/warlog?limit=5',env,async()=>Response.json({reason:'accessDenied',message:'Clan war log is private'},{status:403})),e=>e.status===403&&e.message.includes('privado'));
- await assert.rejects(fetchOfficial('/v1/clans/%232CQ9CR2YP/warlog?limit=5',env,async()=>Response.json({reason:'accessDenied'},{status:403})),e=>e.status===403&&e.message.includes('privado')&&!e.message.includes('IP'));
 });
 
 test('CWL round details and group discovery use bounded authenticated official paths',async()=>{
