@@ -2,6 +2,7 @@ import { handleCwl } from './cwl/router.js';
 import { CwlError } from './cwl/errors.js';
 import { sourceProxy } from './cwl/source-proxy.js';
 import { bridgeCwl } from './cwl/bridge.js';
+import { clientKey } from './cwl/rate-limit.js';
 const PROFILE_API = 'https://clashapi.colinschmale.dev';
 const HISTORY_API = 'https://api.clashk.ing';
 const TTL = 60;
@@ -9,7 +10,6 @@ const TAG = /^[0289PYLQGRJCUV]{3,15}$/;
 const PAGES_ORIGINS = new Set([
   'https://murilosimao.github.io',
   'https://coc-purosangue.duckdns.org',
-  'http://coc-purosangue.duckdns.org',
 ]);
 const AUDIT_ACTIONS = new Set([
   'page_view', 'clan_load_started', 'clan_load_succeeded', 'clan_load_failed',
@@ -326,8 +326,17 @@ export function createWorker(cwlHandler = handleCwl) { return {
     if (url.pathname === '/api/audit' && (!origin || !allowedOrigin)) {
       return logApiRequest(request, json({ error: 'Origem não permitida.' }, 403), startedAt);
     }
+    const backend = url.pathname.startsWith('/api/cwl/') && url.pathname !== '/api/cwl/source';
+    const limiter = backend ? env.CWL_API_LIMITER : env.PUBLIC_API_LIMITER;
+    if (limiter) {
+      // A limiter outage must not take public reads down; login keeps its own fail-closed limiter.
+      const { success } = await limiter.limit({ key: clientKey(request) }).catch(() => ({ success: true }));
+      if (!success) {
+        return logApiRequest(request, cors(json({ error: 'Muitas consultas em pouco tempo. Aguarde um minuto e tente novamente.', code: 'rate_limited' }, 429, { 'Retry-After': '60' })), startedAt);
+      }
+    }
     try {
-      if(url.pathname.startsWith('/api/cwl/')&&url.pathname!=='/api/cwl/source'&&env.CWL_REQUIRE_BRIDGE==='true'&&!env.CWL_BACKEND_URL)
+      if(backend&&env.CWL_REQUIRE_BRIDGE==='true'&&!env.CWL_BACKEND_URL)
         throw new CwlError(503,'A CWL ainda não foi configurada para publicação.','cwl_backend_not_configured');
       const result = url.pathname==='/api/cwl/source' ? await sourceProxy(request)
         : env.CWL_BACKEND_URL&&url.pathname.startsWith('/api/cwl/') ? await bridgeCwl(request,env)
