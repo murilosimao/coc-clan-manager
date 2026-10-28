@@ -31,7 +31,7 @@ export async function fetchOfficial(path, env, fetcher = fetch) {
     }
     if (!response.bodyUsed) await response.body?.cancel();
     const status = [403,404,429].includes(response.status) ? response.status : 502;
-    throw new CwlError(status, privateLog ? 'O histórico de guerras deste clã é privado.' : status === 403 ? 'A chave ou o IP de saída não foi autorizado pela API oficial.'
+    throw new CwlError(status, privateLog || status === 403 && decoded.endsWith('/warlog') ? 'O histórico de guerras deste clã é privado ou não permite esta consulta.' : status === 403 ? 'A chave ou o IP de saída não foi autorizado pela API oficial.'
       : status === 404 ? 'Dados não encontrados na API oficial.'
       : status === 429 ? 'A API oficial limitou as consultas. Aguarde e tente novamente.'
       : 'A API oficial está temporariamente indisponível.', 'official_unavailable');
