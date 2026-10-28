@@ -15,7 +15,7 @@
   const viewTitles = { team: 'Time de guerra', rules: 'Critérios', war: 'Guerras', cwl: 'Liga CWL' };
   const state = {
     clanTag: E.DEFAULT_CLAN, clanName: '', clanBadgeUrl: '', members: [], lastWar: null, currentWar: null,
-    settings: structuredClone(E.DEFAULT_SETTINGS), selection: null, selectionHistoryAvailable: true, source: '', fetchedAt: '',
+    settings: structuredClone(E.DEFAULT_SETTINGS), selection: null, selectionHistoryAvailable: true, minimumHistoryEnd: 0, source: '', fetchedAt: '',
     dataWarnings: [], loading: false, status: '', error: '', loadStages: null, memberProgress: null, view: 'team', filter: 'selected',
     personalWarByTag: new Map(), personalHistoryStatusByTag: new Map(), managedWarByTag: new Map(), historyLoading: false,
     historyLookupWarning: '', historyToken: 0,
@@ -155,7 +155,8 @@
     return `<${tag} class="player-stat attack-stat"><b>${known ? esc(stars) + icon('star', Number(stars) > 0 ? 'filled' : '') : missed ? '<small>Não usado</small>' : '—'}</b><span>${label}</span></${tag}>`;
   }
   function updateSelection() {
-    state.selection = state.members.length ? E.selectTeam(state.members, state.selectionHistoryAvailable && !state.loading ? state.lastWar : null, state.settings, state.currentWar, state.selectionHistoryAvailable ? state.personalWarByTag : new Map(), state.personalHistoryStatusByTag, state.managedWarByTag) : null;
+    const personal = new Map([...state.personalWarByTag].filter(([, war]) => window.ClashKing.timestamp(war.endTime) >= state.minimumHistoryEnd));
+    state.selection = state.members.length ? E.selectTeam(state.members, state.selectionHistoryAvailable && !state.loading ? state.lastWar : null, state.settings, state.currentWar, personal, state.personalHistoryStatusByTag, state.managedWarByTag) : null;
   }
   function render() {
     updateSelection(); renderHeader(); renderStatus(); renderTeam(); renderRules(); renderWar();
@@ -456,7 +457,7 @@
       if (!state.loading) render();
       return;
     }
-    if (!state.selectionHistoryAvailable) {
+    if (state.minimumHistoryEnd === Infinity) {
       state.historyLoading = false;
       state.historyLookupWarning = 'O histórico pessoal não foi aplicado porque falta confirmar a participação na guerra mais recente. Dados antigos não serão usados para excluir jogadores.';
       if (!state.loading) render(); else renderStatus();
@@ -501,10 +502,10 @@
           return;
         }
         const war = window.WarStats.latestCompletedRegularWar(result.value.items || []);
-        if (war) {
+        if (war && window.ClashKing.timestamp(war.endTime) >= state.minimumHistoryEnd) {
           warsByTag.set(tag, war);
           statusesByTag.set(tag, 'found');
-        } else statusesByTag.set(tag, 'none');
+        } else statusesByTag.set(tag, war ? 'unavailable' : 'none');
       });
       checked += batch.length;
       state.status = `Consultando histórico pessoal: ${checked}/${candidates.length} jogadores…`;
@@ -530,7 +531,7 @@
     state.clanTag = normalized; state.clanName = C.find(normalized).name; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
     window.CwlApp.setContext(normalized, false);
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false; state.historyLookupWarning = '';
-    state.managedWarByTag = new Map(); state.selectionHistoryAvailable = false;
+    state.managedWarByTag = new Map(); state.selectionHistoryAvailable = false; state.minimumHistoryEnd = Infinity;
     state.source = ''; state.dataWarnings = []; state.fetchedAt = ''; state.error = ''; state.loading = true;
     state.loadStages = null; state.memberProgress = null; state.currentWarFilter = 'all'; state.warQuery = ''; state.previousWarExpanded = false;
     state.status = 'Consultando membros, escudos e guerras…'; state.expanded.clear();
@@ -571,6 +572,7 @@
       });
       state.managedWarByTag = data.managedWarByTag || new Map();
       state.selectionHistoryAvailable = data.selectionHistoryAvailable !== false;
+      state.minimumHistoryEnd = data.minimumHistoryEnd ?? 0;
       state.members = data.members; state.clanName = data.clan.name; state.clanBadgeUrl = badgeUrl(data.clan.badgeUrls);
       state.lastWar = data.lastWar ? E.buildWar(data.lastWar) : null;
       state.currentWar = data.currentWar ? E.buildWar(data.currentWar) : null;
@@ -581,7 +583,7 @@
     finally { state.loading = false; render(); }
   }
   async function loadDemo() {
-    state.managedWarByTag = new Map(); state.selectionHistoryAvailable = true;
+    state.managedWarByTag = new Map(); state.selectionHistoryAvailable = true; state.minimumHistoryEnd = 0;
     window.ScoreUI.reset();
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false;
     state.loading = true; state.loadStages = null; state.memberProgress = null; state.previousWarExpanded = false; state.currentWarFilter = 'all'; state.warQuery = ''; render();

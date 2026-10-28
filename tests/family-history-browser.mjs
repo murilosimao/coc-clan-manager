@@ -19,6 +19,7 @@ try{
   await page.route('**/api/**',async route=>{
    const url=new URL(route.request().url()),p=decodeURIComponent(url.pathname);calls.push(p);
    if(p==='/api/players')return route.fulfill({json:{items:url.searchParams.get('tags').split(',').map(tag=>({tag,clan:{tag:'#'+selected},townHallLevel:18,warPreference:'in',role:'member'}))}});
+   if(p.endsWith('/war-stats'))return route.fulfill({json:{items:[{type:'random',state:'warEnded',attacksPerMember:2,endTime:'20261020T000000.000Z',attacks:[],defenses:[],clan:{name:'Arquivo atrasado'}}]}});
    if(p.endsWith('/score-history')){if(failed&&p.includes(other))return route.fulfill({status:503,json:{error:'Fonte temporariamente indisponível'}});return route.fulfill({json:{items:[p.includes(other)?prior:own]}});}
    if(p.endsWith('/warlog'))return route.fulfill({json:{items:[{endTime:stale&&!p.includes(other)?'20261028T000000.000Z':(p.includes(other)?prior:own).endTime,opponent:stale&&!p.includes(other)?{tag:'#2RGUJ2QLV',name:'Black Emirates'}:(p.includes(other)?prior:own).opponent}]}});
    if(p.endsWith('/wars'))return route.fulfill({json:{items:[own]}});

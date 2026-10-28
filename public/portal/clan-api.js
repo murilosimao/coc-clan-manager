@@ -216,10 +216,11 @@
     if (!latestSummaries.has(tag)) managedWarByTag.clear();
     const selectionHistoryAvailable = Boolean(lastWar && timestamp(lastWar.endTime) >= uncertaintyCutoff
       && window.WarStats.matchesLatestWar(lastWar, latestSummaries.get(tag), tag));
+    const minimumHistoryEnd = latestSummaries.has(tag) ? Math.max(0, uncertaintyCutoff) : Infinity;
     onData({ type: 'managedHistory', managedWarByTag });
 
     return {
-      clan, members, lastWar, currentWar, warnings, managedWarByTag, selectionHistoryAvailable,
+      clan, members, lastWar, currentWar, warnings, managedWarByTag, selectionHistoryAvailable, minimumHistoryEnd,
       fetchedAt: new Date().toISOString(), profileFetchedAt: clan.fetchedAt,
       memberSource: clan.source || 'clashapi.colinschmale.dev',
     };
