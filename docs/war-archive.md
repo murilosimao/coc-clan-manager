@@ -60,3 +60,20 @@ um 0/2 volta como sem registro na rodada seguinte.
 3. Sem registro: o jogador permanece elegível.
 
 A origem aparece no detalhe do jogador e na coluna de fonte do TSV.
+
+## Retroativo (28/10/2026)
+
+As guerras de 22 a 28/10 não existem em nenhuma API. Foram lidas das páginas
+de guerra do Clash Spot no navegador, porque o site bloqueia clientes que não
+são navegador, e exportadas em JSON. `scripts/import-war-archive.mjs` importa
+com a role de runtime e sem substituir capturas existentes:
+
+- Guerras que o ClashKing ainda tem entram com `source='clashking'`; o Clash
+  Spot bateu 100% com ele nelas: elencos, ataques, estrelas e destruição.
+- As demais entram com `source='clashspot'`. O placar, os ataques e a
+  destruição precisam coincidir com o warlog oficial, e o horário exato do fim
+  vem dele. A duração é omitida: no Clash Spot ela costuma vir com 1 s a mais.
+- Simulação por padrão; `--apply` grava. Migration 006 amplia as origens aceitas.
+
+Em produção: 10 guerras do PuroSangue de 30/09 a 28/10. O SanguePuro não tem
+guerras no Clash Spot (warlog privado).
