@@ -1,5 +1,6 @@
 import { CwlError, requireCondition } from './errors.js';
 import { sealSession } from './session-crypto.js';
+import { clientKey } from './rate-limit.js';
 export async function bridgeCwl(request,env,fetcher=fetch) {
   const original=new URL(request.url), base=new URL(env.CWL_BACKEND_URL);
   const local=['127.0.0.1','localhost','[::1]'].includes(base.hostname);
@@ -7,7 +8,7 @@ export async function bridgeCwl(request,env,fetcher=fetch) {
   requireCondition(typeof env.CWL_BACKEND_KEY==='string'&&env.CWL_BACKEND_KEY.length>=32,503,'Backend CWL não configurado.');
   if(['/api/cwl/auth/login','/api/cwl/auth/password'].includes(original.pathname)||request.method==='POST'&&original.pathname.startsWith('/api/cwl/users')) {
     requireCondition(env.CWL_LOGIN_LIMITER||local,503,'Proteção de login não configurada.');
-    if(env.CWL_LOGIN_LIMITER){const {success}=await env.CWL_LOGIN_LIMITER.limit({key:request.headers.get('CF-Connecting-IP')||'unknown'});requireCondition(success,429,'Muitas tentativas. Aguarde um minuto e tente novamente.');}
+    if(env.CWL_LOGIN_LIMITER){const {success}=await env.CWL_LOGIN_LIMITER.limit({key:clientKey(request)});requireCondition(success,429,'Muitas tentativas. Aguarde um minuto e tente novamente.');}
   }
   const headers=new Headers({Accept:'application/json','X-CWL-Proxy-Key':env.CWL_BACKEND_KEY,'X-CWL-Public-Origin':original.origin});
   // Select near the database; never forward a region supplied by the visitor.

@@ -14,7 +14,7 @@
     "db:setup": "node scripts/setup-cwl-local.mjs",
     "db:up": "docker compose up -d --wait postgres",
     "db:migrate": "node --env-file=.env scripts/migrate-cwl.mjs",
-    "test:cwl": "node --env-file-if-exists=.env --test --test-concurrency=1 tests/cwl-auth.test.mjs tests/cwl-planner.test.mjs tests/cwl-player-history.test.mjs tests/cwl-ranking.test.mjs tests/cwl-public-plan.test.mjs tests/cwl.test.mjs tests/cwl-access.test.mjs",
+    "test:cwl": "node --env-file-if-exists=.env --test --test-concurrency=1 tests/cwl-auth.test.mjs tests/cwl-planner.test.mjs tests/cwl-player-history.test.mjs tests/cwl-ranking.test.mjs tests/cwl-public-plan.test.mjs tests/cwl.test.mjs tests/cwl-access.test.mjs tests/security-hardening.test.mjs",
     "simulate:cwl": "node scripts/simulate-cwl.mjs",
     "build:supabase": "node scripts/build-supabase.mjs",
     "test:parity": "node scripts/compare-cwl-browser.mjs",

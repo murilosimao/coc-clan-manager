@@ -84,7 +84,7 @@ export function createCwlAuth(fetcher=fetch,{membershipReader=memberships}={}){
       requireCondition(token,401,'Entre como líder ou colíder.','session_required');
       requireCondition(request.headers.get('Content-Type')?.startsWith('application/json'),415,'Envie application/json.');
       let data;try{data=JSON.parse(new TextDecoder().decode(await readBytes(request.body,4096)));}catch(error){if(error instanceof CwlError)throw error;throw new CwlError(400,'Dados inválidos.');}
-      requireCondition(data&&typeof data.currentPassword==='string'&&data.currentPassword.length>0&&data.currentPassword.length<=1024&&typeof data.newPassword==='string'&&data.newPassword.length>=8&&data.newPassword.length<=1024,400,'Informe a senha atual e uma nova senha com pelo menos 8 caracteres.');
+      requireCondition(data&&typeof data.currentPassword==='string'&&data.currentPassword.length>0&&data.currentPassword.length<=1024&&typeof data.newPassword==='string'&&data.newPassword.length>=12&&data.newPassword.length<=1024,400,'Informe a senha atual e uma nova senha com pelo menos 12 caracteres.');
       const user=await call(env,'user',{token,method:'GET'});await editor(env,user);
       requireCondition(typeof user.email==='string',400,'A conta não possui email para confirmar a senha.');
       const fresh=await call(env,'token?grant_type=password',{body:{email:user.email,password:data.currentPassword}});

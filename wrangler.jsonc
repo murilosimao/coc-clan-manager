@@ -6,7 +6,11 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "vars": { "CWL_REQUIRE_BRIDGE": "true", "CWL_BACKEND_REGION": "us-east-1" },
-  "ratelimits": [{ "name": "CWL_LOGIN_LIMITER", "namespace_id": "104271001", "simple": { "limit": 5, "period": 60 } }],
+  "ratelimits": [
+    { "name": "CWL_LOGIN_LIMITER", "namespace_id": "104271001", "simple": { "limit": 5, "period": 60 } },
+    { "name": "CWL_API_LIMITER", "namespace_id": "104271002", "simple": { "limit": 120, "period": 60 } },
+    { "name": "PUBLIC_API_LIMITER", "namespace_id": "104271003", "simple": { "limit": 600, "period": 60 } }
+  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
