@@ -74,24 +74,6 @@
     let members = [];
     let lastWar = null;
     let currentWar = null;
-    let managedWarByTag = new Map();
-
-    const contexts = (window.ClanContexts?.clans || []).filter(c => window.ClanContexts.clans.some(x => x.tag === tag));
-    const archives = new Map(), latestSummaries = new Map();
-    let uncertaintyCutoff = -Infinity;
-    const managedHistoryTask = Promise.all(contexts.map(async c => {
-      const [history, summary] = await Promise.allSettled([
-        loadScoreHistory(c.tag, 'random'), request(pathFor(c.tag) + '/warlog'),
-      ]);
-      if (history.status === 'fulfilled') archives.set(c.tag, history.value.items);
-      else addWarning(`O histórico de ${c.name} não pôde ser consultado. A avaliação entre os dois clãs está parcial.`);
-      if (summary.status === 'fulfilled' && Array.isArray(summary.value.items)) {
-        latestSummaries.set(c.tag, summary.value.items.filter(w => Number.isFinite(timestamp(w.endTime)) && timestamp(w.endTime) <= Date.now())
-          .sort((a, b) => timestamp(b.endTime) - timestamp(a.endTime))[0] || null);
-      } else {
-        addWarning(`Não foi possível confirmar a última guerra de ${c.name}. O histórico desse clã está indisponível; a avaliação entre clãs está parcial.`);
-      }
-    }));
 
     const publishLastWar = (candidate) => {
       if (!candidate || (lastWar && timestamp(lastWar.endTime) >= timestamp(candidate.endTime))) return false;
@@ -159,7 +141,7 @@
       try {
         const data = await request(pathFor(tag) + '/wars');
         const wars = Array.isArray(data.items) ? data.items : [];
-        const latest = wars.filter((war) => war.state === 'warEnded' && (!war.type || war.type === 'random') && war.attacksPerMember === 2 && timestamp(war.endTime) <= Date.now())
+        const latest = wars.filter((war) => war.state === 'warEnded' && timestamp(war.endTime) <= Date.now())
           .sort((a, b) => timestamp(b.endTime) - timestamp(a.endTime))[0];
         let published = false;
         if (latest) {
@@ -195,34 +177,12 @@
       }
     })();
 
-    const [clanResult, , , managedResult] = await Promise.allSettled([clanTask, historyTask, currentWarTask, managedHistoryTask]);
+    const [clanResult] = await Promise.allSettled([clanTask, historyTask, currentWarTask]);
     if (clanResult.status !== 'fulfilled') throw clanResult.reason;
-    if (managedResult.status === 'rejected') addWarning('O histórico entre os dois clãs não pôde ser processado.');
-    const freshTags = contexts.filter(c => {
-      const expected = latestSummaries.get(c.tag);
-      const available = (archives.get(c.tag) || []).some(w => {
-        try { return normalizeWar(w, c.tag).sourceComplete && window.WarStats.matchesLatestWar(w, expected, c.tag); } catch { return false; }
-      }) || c.tag === tag && lastWar?.sourceComplete && window.WarStats.matchesLatestWar(lastWar, expected, tag);
-      if (!available && expected) {
-        uncertaintyCutoff = Math.max(uncertaintyCutoff, timestamp(expected.endTime));
-        addWarning(`O arquivo de guerras de ${c.name} está atrasado: falta a guerra contra ${expected.opponent?.name || 'o último adversário'}. Dados antigos não serão tratados como a última participação.`);
-      }
-      return available;
-    }).map(c => c.tag);
-    managedWarByTag = window.WarStats.managedClanHistory([...archives.values()].flat(), freshTags);
-    for (const [playerTag, war] of managedWarByTag) if (timestamp(war.endTime) < uncertaintyCutoff) managedWarByTag.delete(playerTag);
-    // If the selected clan's latest war cannot be checked, an older participation
-    // elsewhere cannot prove a member failed the actual most recent one.
-    if (!latestSummaries.has(tag)) managedWarByTag.clear();
-    const selectionHistoryAvailable = Boolean(lastWar && timestamp(lastWar.endTime) >= uncertaintyCutoff
-      && window.WarStats.matchesLatestWar(lastWar, latestSummaries.get(tag), tag));
-    const minimumHistoryEnd = latestSummaries.has(tag) ? Math.max(0, uncertaintyCutoff) : Infinity;
-    onData({ type: 'managedHistory', managedWarByTag });
-
     return {
-      clan, members, lastWar, currentWar, warnings, managedWarByTag, selectionHistoryAvailable, minimumHistoryEnd,
+      clan, members, lastWar, currentWar, warnings,
       fetchedAt: new Date().toISOString(), profileFetchedAt: clan.fetchedAt,
-      memberSource: clan.source || 'clashapi.colinschmale.dev',
+      memberSource: 'clashapi.colinschmale.dev',
     };
   }
   async function loadPlayerStats(playerTag) {

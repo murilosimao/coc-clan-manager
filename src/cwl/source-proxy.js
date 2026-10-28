@@ -1,5 +1,4 @@
 import { CwlError, requireCondition } from './errors.js';
-import { usesOfficialApi, fetchOfficial } from '../official-api.js';
 const tag='#[0289PYLQGRJCUV]{3,15}';
 export function sourceUrl(value) {
   let url;try{url=new URL(value);}catch{throw new CwlError(400,'Fonte inválida.');}
@@ -15,14 +14,9 @@ export function sourceUrl(value) {
   requireCondition(profile||clan||war||player,400,'Consulta de fonte não permitida.');
   return url.href;
 }
-export async function sourceProxy(request,fetcher=fetch,env={}) {
+export async function sourceProxy(request,fetcher=fetch) {
   requireCondition(request.method==='GET',405,'Método não permitido.');
   const url=sourceUrl(new URL(request.url).searchParams.get('url'));
-  const parsed=new URL(url);
-  if(usesOfficialApi(env)&&parsed.hostname==='clashapi.colinschmale.dev'){
-    const result=await fetchOfficial(parsed.pathname,env,fetcher);
-    return new Response(result.body,{headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Data-Source':'api.clashofclans.com'}});
-  }
   let result;try{result=await fetcher(url,{headers:{Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(15000),cf:{cacheTtl:60,cacheEverything:true}});}
   catch{throw new CwlError(502,'Não foi possível consultar a fonte.','upstream_unavailable');}
   if(!result.ok){await result.body?.cancel();throw new CwlError([403,404,429].includes(result.status)?result.status:502,'Fonte indisponível.','upstream_unavailable');}
