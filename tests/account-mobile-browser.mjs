@@ -8,7 +8,7 @@ const source=fs.readFileSync(new URL('../public/portal/clan-api.js',import.meta.
 const browser=await chromium.launch();
 try {
  const page=await browser.newPage();await page.addInitScript(()=>{if(!localStorage.getItem('coc-clan-context-v1'))localStorage.setItem('coc-clan-context-v1',JSON.stringify({version:1,tag:'2G8QCR92V'}));});let passwordCalls=0;
- await page.route('**/portal/clan-api.js',route=>route.fulfill({contentType:'application/javascript',body:source+`\nwindow.ClanAPI.loadClan=async tag=>({clan:{name:'Clã '+tag},members:${JSON.stringify(demo.members)},lastWar:null,currentWar:null,warnings:[],fetchedAt:new Date().toISOString()});`}));
+ await page.route('**/portal/clan-api.js*',route=>route.fulfill({contentType:'application/javascript',body:source+`\nwindow.ClanAPI.loadClan=async tag=>({clan:{name:'Clã '+tag},members:${JSON.stringify(demo.members)},lastWar:null,currentWar:null,warnings:[],fetchedAt:new Date().toISOString()});`}));
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
   let data={};
