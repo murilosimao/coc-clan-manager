@@ -58,3 +58,17 @@ DO $$ DECLARE item record; BEGIN
   END LOOP;
 END $$;
 -- Grant LOGIN and set a random password separately, without committing a password.
+-- Account access is mutable; leadership rows cannot be created or removed by runtime.
+DO $$ BEGIN
+  IF to_regclass('cwl.memberships') IS NOT NULL THEN
+    GRANT SELECT,INSERT ON cwl.accounts,cwl.access_events TO cwl_runtime;
+    GRANT SELECT,INSERT,DELETE ON cwl.memberships TO cwl_runtime;
+    DROP POLICY IF EXISTS cwl_server_only ON cwl.memberships;
+    DROP POLICY IF EXISTS access_read ON cwl.memberships;
+    DROP POLICY IF EXISTS access_grant ON cwl.memberships;
+    DROP POLICY IF EXISTS access_revoke ON cwl.memberships;
+    CREATE POLICY access_read ON cwl.memberships FOR SELECT TO cwl_runtime USING (true);
+    CREATE POLICY access_grant ON cwl.memberships FOR INSERT TO cwl_runtime WITH CHECK (role='coLeader');
+    CREATE POLICY access_revoke ON cwl.memberships FOR DELETE TO cwl_runtime USING (role='coLeader');
+  END IF;
+END $$;

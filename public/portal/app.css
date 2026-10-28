@@ -418,6 +418,16 @@ body:has(dialog[open]) { overflow:hidden; }
 .dialog-heading .eyebrow { font-size:9px; }
 #clan-form,#leader-form,#password-form { display:flex; flex-direction:column; gap:14px; }
 #password-form { margin-top:16px; }
+#user-create-form { display:flex; flex-direction:column; gap:14px; border-top:1px solid var(--line); margin-top:24px; padding-top:20px; }
+.users-list { display:flex; flex-direction:column; margin-top:18px; }
+.user-access-row { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:16px 0; border-bottom:1px solid var(--line); }
+.user-access-row>div:first-child { flex:1; min-width:0; }
+.user-access-row strong { display:block; overflow-wrap:anywhere; font-size:14px; }
+.user-access-row small { display:block; color:var(--muted); margin-top:5px; }
+.user-remove-confirm { width:100%; flex-basis:100%; }
+.user-remove-confirm>div { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+.user-remove-confirm p { overflow-wrap:anywhere; }
+.users-notice { color:var(--green); margin-top:14px; }
 #leader-form .button,.leader-actions .button { width:100%; }
 .leader-intro { color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:20px; }
 .leader-intro strong { color:var(--text); }
