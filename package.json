@@ -9,7 +9,7 @@
     "deploy": "wrangler deploy",
     "check": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
     "check:scores": "node scripts/check-war-scores.mjs",
-    "test:ui": "node tests/cwl-browser.mjs && node tests/cwl-compute-browser.mjs && node tests/cwl-members-browser.mjs && node tests/cwl-score-help-browser.mjs",
+    "test:ui": "node tests/cwl-browser.mjs && node tests/cwl-compute-browser.mjs && node tests/cwl-members-browser.mjs && node tests/cwl-score-help-browser.mjs && node tests/account-mobile-browser.mjs",
     "demo:cwl": "node scripts/generate-cwl-demo.mjs",
     "db:setup": "node scripts/setup-cwl-local.mjs",
     "db:up": "docker compose up -d --wait postgres",

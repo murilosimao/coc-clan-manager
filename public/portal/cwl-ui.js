@@ -3,7 +3,7 @@
   'use strict';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
-  const canEdit=state=>state.demo||state.editor?.clanTag===state.clanTag&&['leader','coLeader'].includes(state.editor.role);
+  const canEdit=state=>state.demo||(state.editor?.clanTags||[state.editor?.clanTag]).includes(state.clanTag)&&['leader','coLeader'].includes(state.editor.role);
   function loginAction(state){
     if(state.loginUrl)return `<a class="button primary" href="${esc(state.loginUrl+'&clan='+encodeURIComponent(state.clanTag)+'&login=1')}">${icon('crown')}<span>Entrar como liderança</span></a>`;
     return `<button type="button" class="button primary" data-cwl-action="login">${icon('crown')}<span>Entrar como liderança</span></button>`;

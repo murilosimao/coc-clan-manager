@@ -220,6 +220,7 @@
     loadCwlSession:()=>API_ORIGIN?Promise.resolve({authenticated:false}):request('/api/cwl/auth/session',{auth:true}),
     loginCwl:(email,password)=>request('/api/cwl/auth/login',{method:'POST',auth:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),
     logoutCwl:()=>request('/api/cwl/auth/logout',{method:'POST',auth:true}),
+    changeCwlPassword:(currentPassword,newPassword)=>request('/api/cwl/auth/password',{method:'POST',auth:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword,newPassword})}),
     initializeCwlPlan:(tag,start,archive)=>request(cwlClan(tag)+'/wars/'+encodeURIComponent(start)+'/plan/initialize',{method:'POST',auth:true,headers:{'Content-Type':'application/gzip'},body:archive,timeout:120000}),
     reviseCwlPlan:(tag,start,body)=>request(cwlClan(tag)+'/wars/'+encodeURIComponent(start)+'/plan/revisions',{method:'POST',auth:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
     loadCwlSeason: (tag, season) => request(cwlClan(tag) + cwlSeason(season)),

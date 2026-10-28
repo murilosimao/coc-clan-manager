@@ -29,24 +29,34 @@
 
   function loadSettings() {
     try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      const legacy = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      if (/^[0289PYLQGRJCUV]{3,15}$/.test(E.normalizeTag(legacy.clanTag))) state.clanTag = E.normalizeTag(legacy.clanTag);
+      loadClanSettings(state.clanTag, legacy);
+    } catch { /* Storage is optional. */ }
+  }
+  function loadClanSettings(tag, legacy = {}) {
+    state.settings = structuredClone(E.DEFAULT_SETTINGS);
+    try {
+      const stored = localStorage.getItem(storageKey + ':' + tag);
+      const saved = stored ? JSON.parse(stored) : E.normalizeTag(legacy.clanTag || E.DEFAULT_CLAN) === tag ? legacy : {};
       for (const key of Object.keys(E.DEFAULT_SETTINGS)) {
         const value = saved[key];
         if (Array.isArray(E.DEFAULT_SETTINGS[key])) {
           if (Array.isArray(value)) state.settings[key] = value.filter((tag) => typeof tag === 'string').map(E.normalizeTag);
         } else if (value != null && typeof value === typeof E.DEFAULT_SETTINGS[key]) state.settings[key] = value;
       }
-      if (/^[0289PYLQGRJCUV]{3,15}$/.test(E.normalizeTag(saved.clanTag))) state.clanTag = E.normalizeTag(saved.clanTag);
       if (Number(saved.selectionRulesVersion) < 2) {
         // The previous release required triples, excluded players without data,
         // and defaulted to the largest team. Keep personal lists, migrate rules.
         state.settings.usePlayerHistoryFallback = false;
-        saveSettings();
       }
     } catch { /* Storage is optional. */ }
   }
   function saveSettings() {
-    try { localStorage.setItem(storageKey, JSON.stringify({ ...state.settings, clanTag: state.clanTag, selectionRulesVersion: 2 })); } catch { /* Storage is optional. */ }
+    try {
+      localStorage.setItem(storageKey + ':' + state.clanTag, JSON.stringify({ ...state.settings, selectionRulesVersion: 2 }));
+      localStorage.setItem(storageKey, JSON.stringify({ clanTag: state.clanTag }));
+    } catch { /* Storage is optional. */ }
   }
   function toast(message) {
     const node = $('#toast');
@@ -190,7 +200,7 @@
     const s = state.selection;
     const counts = { selected: s.selected.length, bench: s.bench.length, all: state.members.length };
     const labels = { selected: 'Convocados', bench: 'Reserva', all: 'Todos' };
-    container.innerHTML = `${summary()}<div class="workspace-grid"><section class="roster-panel" aria-labelledby="team-title"><div class="section-heading"><div><div class="eyebrow">TIME DE GUERRA</div><h2 id="team-title" tabindex="-1">Escalação sugerida</h2></div><button type="button" class="button primary desktop-copy" data-command="copy" ${state.loading || state.historyLoading ? 'disabled' : ''}>${icon('copy')}Copiar para Excel</button></div>
+    container.innerHTML = `${summary()}<div class="workspace-grid"><section class="roster-panel" aria-labelledby="team-title"><div class="section-heading"><div><div class="eyebrow">TIME DE GUERRA</div><h2 id="team-title" tabindex="-1">Escalação sugerida</h2></div><button type="button" class="button primary desktop-copy" data-command="copy" ${state.loading || state.historyLoading ? 'disabled' : ''}>${icon('copy')}Copiar para Excel</button></div><button type="button" class="button secondary team-rules" data-view="rules">${icon('sliders')} Critérios do time</button>
       <div class="roster-toolbar"><div class="segments" role="group" aria-label="Jogadores exibidos">${Object.keys(labels).map((filter) => `<button type="button" data-filter="${filter}" aria-pressed="${state.filter === filter}">${labels[filter]}<span>${counts[filter]}</span></button>`).join('')}</div><div class="search-export"><label class="search-field">${icon('search')}<input type="search" id="roster-search" aria-label="Buscar jogador por nome ou tag" placeholder="Buscar jogador" autocomplete="off" value="${esc(state.query)}"></label><button type="button" class="button secondary export-button" data-command="export" aria-label="Baixar escalação em TSV" title="Baixar TSV para Excel" ${state.loading || state.historyLoading ? 'disabled' : ''}>${icon('download')}<span>TSV</span></button></div></div>
       <div id="roster-content"></div><div class="roster-footnote">${icon('shield')}Escudos indicam a preferência no jogo. Os ajustes aqui alteram apenas a sugestão.</div></section>${renderRail()}</div>`;
     renderRoster();
@@ -466,6 +476,7 @@
     if (!/^[0289PYLQGRJCUV]{3,15}$/.test(normalized)) { toast('Digite uma tag de clã válida, como #2G8QCR92V.'); return; }
     audit('clan_load_started');
     window.ScoreUI.reset();
+    if (normalized !== state.clanTag) { saveSettings(); loadClanSettings(normalized); }
     state.clanTag = normalized; state.clanName = ''; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
     window.CwlApp.setContext(normalized, false);
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false; state.historyLookupWarning = '';
@@ -522,6 +533,7 @@
       const response = await fetch('portal/demo.json', { credentials: 'omit' });
       if (!response.ok) throw new Error('Demonstração indisponível.');
       const data = await response.json();
+      if (state.clanTag !== E.DEFAULT_CLAN) { saveSettings(); loadClanSettings(E.DEFAULT_CLAN); }
       state.clanTag = E.DEFAULT_CLAN; state.clanName = data.lastWar.result.clans[data.lastWar.result.ourSide].name;
       state.members = data.members; state.lastWar = E.buildWar(data.lastWar); state.currentWar = E.buildWar(data.currentWar);
       state.clanBadgeUrl = badgeUrl(data.lastWar.result.clans[data.lastWar.result.ourSide].badgeUrls);
@@ -672,7 +684,7 @@
     const error = leaderState.error ? `<p class="leader-error" role="alert">${icon('alert')}<span>${esc(leaderState.error)}</span></p>` : '';
     $('#leader-title').textContent = editor ? 'Você está conectado' : 'Acesso da liderança';
     $('#leader-body').innerHTML = editor
-      ? `<div class="leader-session">${icon('crown')}<div><strong>${esc(leaderRoles[editor.role] || 'Liderança')} do clã #${esc(editor.clanTag)}</strong><small>Pode preparar, ajustar e aprovar o plano da CWL.</small></div></div>${error}<div class="leader-actions"><button type="button" class="button primary" data-command="leader-open-cwl">Abrir plano da CWL ${icon('arrow')}</button><button type="button" class="button secondary" data-command="leader-sign-out" ${busy}>${leaderState.busy ? 'Saindo…' : 'Sair da conta'}</button></div>`
+      ? `<div class="leader-session">${icon('crown')}<div><strong>${esc(leaderRoles[editor.role] || 'Liderança')} ${(editor.clanTags||[editor.clanTag]).map(tag=>'#'+esc(tag)).join(' · ')}</strong><small>Pode preparar, ajustar e aprovar o plano da CWL.</small></div></div>${error}<div class="leader-actions"><button type="button" class="button primary" data-command="leader-open-cwl">Abrir plano da CWL ${icon('arrow')}</button><button type="button" class="button secondary" data-command="leader-sign-out" ${busy}>Sair da conta</button></div><details><summary>Alterar senha</summary><form id="password-form"><label class="field"><span>Senha atual</span><input name="currentPassword" type="password" autocomplete="current-password" required ${busy}></label><label class="field"><span>Nova senha</span><input name="newPassword" type="password" autocomplete="new-password" minlength="8" required ${busy}></label><label class="field"><span>Confirme a nova senha</span><input name="confirmation" type="password" autocomplete="new-password" minlength="8" required ${busy}></label><button type="submit" class="button secondary" ${busy}>Salvar nova senha</button></form></details>`
       : `<p class="leader-intro">Para <strong>líder e colíderes</strong> prepararem, ajustarem e aprovarem o plano da CWL. Membros não precisam entrar: o plano aprovado fica visível para todos.</p><form id="leader-form"><label class="field" for="leader-email"><span>Email</span><input id="leader-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required value="${esc(leaderState.email)}" ${busy}></label><label class="field" for="leader-password"><span>Senha</span><input id="leader-password" name="password" type="password" autocomplete="current-password" required ${busy}></label>${error}<button type="submit" class="button primary" ${busy}>${leaderState.busy ? 'Entrando…' : 'Entrar'}</button></form><p class="leader-note">O acesso é liberado somente para contas autorizadas do clã.</p>`;
   }
   function openLeader() {
@@ -704,6 +716,14 @@
     catch (error) { leaderState.busy = false; leaderState.error = error.message; renderLeaderDialog(); }
     renderLeaderAccess();
   }
+  async function changePassword(form) {
+    if (leaderState.busy) return;
+    const values = new FormData(form), current = String(values.get('currentPassword') || ''), next = String(values.get('newPassword') || '');
+    if (next !== values.get('confirmation')) { leaderState.error = 'As novas senhas não coincidem.'; renderLeaderDialog(); return; }
+    leaderState.busy = true; leaderState.error = ''; renderLeaderDialog();
+    try { await window.ClanAPI.changeCwlPassword(current, next); leaderState.busy = false; renderLeaderDialog(); toast('Senha alterada.'); }
+    catch (error) { leaderState.busy = false; leaderState.error = error.message; renderLeaderDialog(); }
+  }
   function bindEvents() {
     document.addEventListener('error', (event) => {
       const image = event.target;
@@ -723,7 +743,7 @@
     $('#close-leader').addEventListener('click', closeLeader);
     $('#leader-dialog').addEventListener('cancel', (event) => { if (leaderState.busy) event.preventDefault(); });
     $('#leader-dialog').addEventListener('click', (event) => { if (event.target === $('#leader-dialog')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeLeader(); } });
-    $('#leader-dialog').addEventListener('submit', (event) => { if (event.target.id === 'leader-form') { event.preventDefault(); signInLeader(event.target); } });
+    $('#leader-dialog').addEventListener('submit', (event) => { if (event.target.id === 'leader-form') { event.preventDefault(); signInLeader(event.target); } else if (event.target.id === 'password-form') { event.preventDefault(); changePassword(event.target); } });
     $('#clan-dialog').addEventListener('click', (event) => { if (event.target === $('#clan-dialog')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeClan(); } });
     $('#clan-form').addEventListener('submit', (event) => { event.preventDefault(); const tag = E.normalizeTag($('#clan-input').value); if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag)) { $('#clan-input').setCustomValidity('Use uma tag válida de clã.'); $('#clan-input').reportValidity(); return; } closeClan(); setView('team', false); loadClan(tag); });
     $('#clan-input').addEventListener('input', () => $('#clan-input').setCustomValidity(''));
