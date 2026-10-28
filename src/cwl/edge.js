@@ -3,6 +3,8 @@ import { createCwlAuth } from './auth.js';
 import { CwlError,requireCondition } from './errors.js';
 import { openSession } from './session-crypto.js';
 import { createUsersHandler } from './users.js';
+import { ClashCwlProvider } from './provider.js';
+import { usesOfficialApi, fetchOfficial } from '../official-api.js';
 
 async function sameSecret(provided,expected){
   if(typeof expected!=='string'||expected.length<32)return false;
@@ -12,7 +14,13 @@ async function sameSecret(provided,expected){
 export function createEdgeHandler(environment,{fetcher=fetch,provider,database,clock=Date.now}={}){
   const auth=createCwlAuth(fetcher);
   const users=createUsersHandler(auth,{fetcher});
-  const api=createCwlHandler({provider,database,clock,authorize:auth.authorize,browserPlans:true});
+  const liveProvider=provider||new ClashCwlProvider((url,options)=>{
+    const env=typeof environment==='function'?environment():environment;
+    const parsed=new URL(url);
+    return usesOfficialApi(env)&&parsed.hostname==='clashapi.colinschmale.dev'
+      ?fetchOfficial(parsed.pathname,env,fetcher):fetcher(url,options);
+  });
+  const api=createCwlHandler({provider:liveProvider,database,clock,authorize:auth.authorize,browserPlans:true});
   return async request=>{
     try{
       const env=typeof environment==='function'?environment():environment;
