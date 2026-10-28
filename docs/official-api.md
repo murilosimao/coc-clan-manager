@@ -25,6 +25,8 @@ Rotas públicas adicionais, sujeitas ao limitador existente:
   destruição, duração, data e código do exército quando disponível.
 - `/api/league-tiers`: catálogo oficial de ligas e ícones.
 - `/api/clans/:tag/warlog`: resumo atualizado das últimas guerras normais.
+- `/api/clans/:tag/league-group`: grupo atual da CWL e warTags das rodadas.
+- `/api/league-wars/:warTag`: detalhes de uma rodada CWL quando disponível na API oficial. Não representa uma guerra normal.
 
 Essas rotas ainda não alteram o score ATQ/DEF. A fórmula continua usando o
 histórico de guerra validado; o sinal de consistência ranqueada precisa de

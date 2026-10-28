@@ -35,6 +35,7 @@ try{
   const tsv=await page.evaluate(()=>window.ClanManager.selectionTSV());assert(tsv.includes('Histórico dos clãs: '+prior.clan.name));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),width);
   await page.screenshot({path:'.wrangler/cwl-ui-review/family-history-'+selected+'-'+width+'.png'});
+  await page.evaluate(tag=>{const k='clashspot-war-selector-v1:'+tag;const settings=JSON.parse(localStorage.getItem(k));settings.usePlayerHistoryFallback=true;localStorage.setItem(k,JSON.stringify(settings));},selected);
   stale=true;await page.reload();await page.waitForFunction(()=>window.ClanManager?.state.members.length&&!window.ClanManager.state.loading);
   const staleResult=await page.evaluate(tag=>{const s=window.ClanManager.state,r=s.selection.all.find(r=>r.member.tag===tag);return{known:Boolean(r.criteriaPerf),eligible:r.eligible,warnings:s.dataWarnings};},player);
   assert.equal(staleResult.known,false);assert(staleResult.eligible);assert(staleResult.warnings.some(w=>w.includes('Black Emirates')));

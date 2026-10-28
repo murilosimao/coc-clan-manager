@@ -49,3 +49,10 @@ test('CWL source bridge uses official current war and never forwards the key to 
 test('private warlogs are distinguished from an invalid production key',async()=>{
  await assert.rejects(fetchOfficial('/v1/clans/%232CQ9CR2YP/warlog?limit=5',env,async()=>Response.json({reason:'accessDenied',message:'Clan war log is private'},{status:403})),e=>e.status===403&&e.message.includes('privado'));
 });
+
+test('CWL round details and group discovery use bounded authenticated official paths',async()=>{
+ for(const path of ['/v1/clanwarleagues/wars/%238G2GCP2RU','/v1/clans/%232G8QCR92V/currentwar/leaguegroup']){
+  const r=await officialJson(path,env,async(url,opts)=>{assert.equal(new URL(url).hostname,'cocproxy.royaleapi.dev');assert.equal(opts.headers.Authorization,'Bearer '+key);return Response.json({state:'warEnded',clan:{members:[{attacks:[{stars:3}]}]}});});
+  assert.equal(r.data.clan.members[0].attacks[0].stars,3);
+ }
+});

@@ -13,7 +13,7 @@ export async function fetchOfficial(path, env, fetcher = fetch) {
   const { origin, key } = officialSource(env);
   requireCondition(typeof path === 'string' && path.startsWith('/v1/'), 400, 'Consulta oficial não permitida.');
   const url = new URL(path, origin), decoded = decodeURIComponent(url.pathname), tag = '#[0289PYLQGRJCUV]{3,15}';
-  const allowed = new RegExp(`^/v1/(players/${tag}(/(battlelog|leaguehistory))?|clans/${tag}(/(members|warlog|currentwar))?|leaguetiers(/[0-9]+)?|leaguegroup/#[A-Z0-9]{3,32}/[0-9]{10})$`);
+  const allowed = new RegExp(`^/v1/(players/${tag}(/(battlelog|leaguehistory))?|clans/${tag}(/(members|warlog|currentwar(/leaguegroup)?))?|clanwarleagues/wars/#[A-Z0-9]{3,32}|leaguetiers(/[0-9]+)?|leaguegroup/#[A-Z0-9]{3,32}/[0-9]{10})$`);
   requireCondition(url.origin === origin && !url.hash && allowed.test(decoded), 400, 'Consulta oficial não permitida.');
   for (const [name, value] of url.searchParams) {
     requireCondition(name === 'limit' && /^(5|10)$/.test(value) && decoded.endsWith('/warlog')

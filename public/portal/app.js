@@ -155,7 +155,7 @@
     return `<${tag} class="player-stat attack-stat"><b>${known ? esc(stars) + icon('star', Number(stars) > 0 ? 'filled' : '') : missed ? '<small>Não usado</small>' : '—'}</b><span>${label}</span></${tag}>`;
   }
   function updateSelection() {
-    state.selection = state.members.length ? E.selectTeam(state.members, state.selectionHistoryAvailable && !state.loading ? state.lastWar : null, state.settings, state.currentWar, state.personalWarByTag, state.personalHistoryStatusByTag, state.managedWarByTag) : null;
+    state.selection = state.members.length ? E.selectTeam(state.members, state.selectionHistoryAvailable && !state.loading ? state.lastWar : null, state.settings, state.currentWar, state.selectionHistoryAvailable ? state.personalWarByTag : new Map(), state.personalHistoryStatusByTag, state.managedWarByTag) : null;
   }
   function render() {
     updateSelection(); renderHeader(); renderStatus(); renderTeam(); renderRules(); renderWar();
@@ -454,6 +454,12 @@
     if (!state.settings.usePlayerHistoryFallback) {
       state.historyLoading = false;
       if (!state.loading) render();
+      return;
+    }
+    if (!state.selectionHistoryAvailable) {
+      state.historyLoading = false;
+      state.historyLookupWarning = 'O histórico pessoal não foi aplicado porque falta confirmar a participação na guerra mais recente. Dados antigos não serão usados para excluir jogadores.';
+      if (!state.loading) render(); else renderStatus();
       return;
     }
     if (state.source !== 'worker') {

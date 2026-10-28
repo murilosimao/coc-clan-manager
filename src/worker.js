@@ -259,6 +259,13 @@ async function api(request, ctx, env, cwlHandler = handleCwl) {
     const result = await officialJson('/v1/leaguetiers', env);
     return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'api.clashofclans.com' });
   }
+  const leagueWar = url.pathname.match(/^\/api\/league-wars\/([^/]+)$/);
+  if (leagueWar) {
+    const tag = decodeURIComponent(leagueWar[1]).replace(/^#/, '').toUpperCase();
+    if (!/^[A-Z0-9]{3,32}$/.test(tag)) throw new APIError(400, 'Tag de guerra inválida.');
+    const result = await officialJson('/v1/clanwarleagues/wars/' + encodeURIComponent('#' + tag), env);
+    return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'api.clashofclans.com' });
+  }
 
   const scoreMatch = url.pathname.match(/^\/api\/clans\/([^/]+)\/score-history$/);
   if (scoreMatch) {
@@ -312,10 +319,14 @@ async function api(request, ctx, env, cwlHandler = handleCwl) {
     return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashking', cacheSeconds: TTL });
   }
 
-  const match = url.pathname.match(/^\/api\/clans\/([^/]+)(?:\/(wars|currentwar|warlog))?$/);
+  const match = url.pathname.match(/^\/api\/clans\/([^/]+)(?:\/(wars|currentwar|warlog|league-group))?$/);
   if (!match) return json({ error: 'Rota não encontrada.' }, 404);
   const tag = tagOf(decodeURIComponent(match[1]));
   const encoded = encodeURIComponent('#' + tag);
+  if (match[2] === 'league-group') {
+    const result = await officialJson(`/v1/clans/${encoded}/currentwar/leaguegroup`, env);
+    return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'api.clashofclans.com' });
+  }
   if (match[2] === 'warlog') {
     const result = await liveProfile(`/v1/clans/${encoded}/warlog?limit=5`, ctx, env, data => {
       if (!Array.isArray(data?.items)) throw new APIError(502, 'O resumo das últimas guerras está indisponível.');
