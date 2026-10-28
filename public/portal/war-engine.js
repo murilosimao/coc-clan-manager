@@ -146,8 +146,7 @@
     };
   }
 
-  function selectTeam(members, lastWar, settings, currentWar, personalHistoryByTag = new Map(), historyStatusByTag = new Map(), managedHistoryByTag = new Map()) {
-    const endedAt = value => Date.parse(String(value || '').replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6'));
+  function selectTeam(members, lastWar, settings, currentWar, personalHistoryByTag = new Map(), historyStatusByTag = new Map()) {
     const perfByTag = new Map((lastWar?.players || []).map((player) => [normalizeTag(player.tag), player]));
     const rank = makeRankFn(settings.rankBy);
     const activityRank = makeActivityRankFn();
@@ -158,17 +157,15 @@
 
     const all = members.map((member) => {
       const currentPerf = perfByTag.get(normalizeTag(member.tag)) || null;
-      const managed = managedHistoryByTag.get(normalizeTag(member.tag)) || null;
-      const moreRecent = managed && (!currentPerf || endedAt(managed.endTime) > endedAt(lastWar?.endTime));
-      const historyWar = moreRecent ? managed : !currentPerf && settings.usePlayerHistoryFallback ? personalHistoryByTag.get(normalizeTag(member.tag)) || null : null;
+      const historyWar = settings.usePlayerHistoryFallback ? personalHistoryByTag.get(normalizeTag(member.tag)) || null : null;
       const historyPerf = personalWarPerformance(historyWar);
-      const criteriaPerf = historyPerf || currentPerf;
+      const criteriaPerf = currentPerf || historyPerf;
       const perf = criteriaPerf;
-      const inWar = Boolean(currentPerf) && !historyPerf;
-      const usedPersonalHistory = Boolean(historyPerf);
+      const inWar = Boolean(currentPerf);
+      const usedPersonalHistory = !currentPerf && Boolean(historyPerf);
       const attacks = criteriaPerf ? criteriaPerf.attacks : 0;
       const stars = criteriaPerf ? criteriaPerf.stars : 0;
-      const newStars = inWar ? currentPerf.newStars : 0;
+      const newStars = currentPerf ? currentPerf.newStars : 0;
       const triples = criteriaPerf ? criteriaPerf.triples : 0;
       const hardReasons = [];
       const softReasons = [];
@@ -201,7 +198,6 @@
         historyWar: usedPersonalHistory ? historyWar : null,
         historyStatus: historyStatusByTag.get(normalizeTag(member.tag)) || '',
         usedPersonalHistory,
-        usedManagedHistory: usedPersonalHistory && historyWar.sourceScope === 'managed-clans',
         inWar,
         attacks,
         stars,
