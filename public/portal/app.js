@@ -17,7 +17,7 @@
     clanTag: E.DEFAULT_CLAN, clanName: '', clanBadgeUrl: '', members: [], lastWar: null, currentWar: null,
     settings: structuredClone(E.DEFAULT_SETTINGS), selection: null, source: '', fetchedAt: '',
     dataWarnings: [], loading: false, status: '', error: '', loadStages: null, memberProgress: null, view: 'team', filter: 'selected',
-    personalWarByTag: new Map(), personalHistoryStatusByTag: new Map(), historyLoading: false,
+    personalWarByTag: new Map(), personalHistoryStatusByTag: new Map(), historyLoading: false, historyFreshness: null, familyWars: [],
     historyLookupWarning: '', historyToken: 0,
     query: '', warQuery: '', currentWarFilter: 'all', expanded: new Set(), previousWarExpanded: false, advancedOpen: false,
   };
@@ -78,18 +78,18 @@
       // these lists. Reset them once per clan; retain that clan's criteria.
       if (saved.manualRosterVersion !== 1) {
         for (const key of manualRosterKeys) state.settings[key] = [];
-        localStorage.setItem(storageKey + ':' + tag, JSON.stringify({ ...state.settings, selectionRulesVersion: 2, manualRosterVersion: 1 }));
+        localStorage.setItem(storageKey + ':' + tag, JSON.stringify({ ...state.settings, selectionRulesVersion: 3, manualRosterVersion: 1 }));
       }
-      if (Number(saved.selectionRulesVersion) < 2) {
-        // The previous release required triples, excluded players without data,
-        // and defaulted to the largest team. Keep personal lists, migrate rules.
-        state.settings.usePlayerHistoryFallback = false;
+      if (!(Number(saved.selectionRulesVersion) >= 3)) {
+        // Version 3 checks recent history automatically for players missing
+        // from the clan's last war: our family archive first, then ClashKing.
+        state.settings.usePlayerHistoryFallback = true;
       }
     } catch { /* Storage is optional. */ }
   }
   function saveSettings() {
     try {
-      localStorage.setItem(storageKey + ':' + state.clanTag, JSON.stringify({ ...state.settings, selectionRulesVersion: 2, manualRosterVersion: 1 }));
+      localStorage.setItem(storageKey + ':' + state.clanTag, JSON.stringify({ ...state.settings, selectionRulesVersion: 3, manualRosterVersion: 1 }));
       localStorage.setItem(storageKey, JSON.stringify({ clanTag: state.clanTag }));
     } catch { /* Storage is optional. */ }
   }
@@ -118,9 +118,11 @@
     if (row.exception) return { label: 'Exceção para completar', tone: 'gold', detail: `${row.softReasons.join(' · ') || 'Incluído para completar o tamanho do time.'}${row.usedPersonalHistory ? ` ${personalHistoryDetail(row.historyWar)}` : ''}` };
     if (row.softReasons.length) return { label: row.usedPersonalHistory ? 'Histórico abaixo das regras' : 'Desempenho abaixo das regras', tone: 'muted', detail: `${row.softReasons.join(' · ')}${row.usedPersonalHistory ? `. ${personalHistoryDetail(row.historyWar)}` : ''}` };
     if (row.usedPersonalHistory) return { label: 'Histórico pessoal aprovado', tone: 'blue', detail: personalHistoryDetail(row.historyWar) };
+    if (row.partialCaptureHold) return { label: 'Captura parcial · mantido', tone: 'gold', detail: `A captura da última guerra terminou antes do resultado final (${row.attacks}/2 ataques registrados). Sem o resultado final, o jogador permanece elegível.` };
     if (!row.inWar) {
       if (row.historyStatus === 'unavailable') return { label: 'Histórico indisponível · mantido', tone: 'gold', detail: 'A consulta ao histórico falhou. Sem registro da guerra anterior, o jogador permanece elegível.' };
-      if (row.historyStatus === 'none') return { label: 'Sem histórico · mantido', tone: 'blue', detail: 'Não há guerra normal anterior registrada. A ausência de dados não exclui o jogador.' };
+      if (row.historyStatus === 'none') return { label: 'Sem histórico recente · mantido', tone: 'blue', detail: 'Não há guerra normal encerrada depois do início da última guerra do clã. A ausência de dados não exclui o jogador.' };
+      if (row.historyStatus === 'stale') return { label: 'Sem registro · mantido', tone: 'blue', detail: 'Sem registro no arquivo da família, e o ClashKing está desatualizado. A ausência de dados não exclui o jogador.' };
       return { label: 'Sem registro · mantido', tone: 'blue', detail: 'Sem participação registrada na última guerra do clã. A ausência de dados não exclui o jogador.' };
     }
     if (row.eligible) return { label: 'Critérios atendidos', tone: 'green', detail: 'Fez os dois ataques e marcou ao menos uma estrela na última guerra concluída.' };
@@ -134,7 +136,7 @@
     const stars = attacks.reduce((sum, attack) => sum + attack.stars, 0);
     const attackResult = (value) => value == null ? 'não realizado' : `${value} ${value === 1 ? 'estrela' : 'estrelas'}`;
     const total = `${stars} ${stars === 1 ? 'estrela' : 'estrelas'}`;
-    return `Histórico pessoal: 1º ataque ${attackResult(attacks[0]?.stars)}, 2º ataque ${attackResult(attacks[1]?.stars)}, ${total} no total; guerra encerrada em ${date}${clan}.`;
+    return `${war?.sourceLabel || 'Histórico pessoal'}: 1º ataque ${attackResult(attacks[0]?.stars)}, 2º ataque ${attackResult(attacks[1]?.stars)}, ${total} no total; guerra encerrada em ${date}${clan}.`;
   }
   function badgeUrl(value) {
     const url = typeof value === 'string' ? value : value?.medium || value?.large || value?.small || '';
@@ -162,7 +164,7 @@
     $('#refresh').disabled = state.loading || state.view === 'cwl' && Boolean(window.CwlApp.state.loading);
     $('#open-clan').disabled = state.loading || Boolean(window.CwlApp.state.saveBusy);
     if ($('#clan-dialog').open) renderClanOptions();
-    $('#source-info').innerHTML = `<h3>Sobre os dados</h3><p>${state.source === 'demo' ? 'Demonstração de 20/10/2026. Esta captura não representa o clã em tempo real.' : 'Os escudos e membros vêm dos perfis públicos do jogo. O desempenho usa a última guerra concluída; sem registro, o jogador permanece elegível. As fontes podem apresentar atraso de atualização; o cache dura até 1 minuto.'}</p>${state.settings.usePlayerHistoryFallback ? '<p>Quando ativado, o histórico pessoal da última guerra normal concluída é usado somente para quem não tem registro na última guerra do clã.</p>' : ''}${state.fetchedAt ? `<p>Última consulta: ${esc(new Date(state.fetchedAt).toLocaleString('pt-BR'))}.</p>` : ''}`;
+    $('#source-info').innerHTML = `<h3>Sobre os dados</h3><p>${state.source === 'demo' ? 'Demonstração de 20/10/2026. Esta captura não representa o clã em tempo real.' : 'Os escudos e membros vêm dos perfis públicos do jogo. O desempenho usa a última guerra concluída; sem registro, o jogador permanece elegível. As fontes podem apresentar atraso de atualização; o cache dura até 1 minuto.'}</p>${state.settings.usePlayerHistoryFallback ? '<p>Para quem não jogou a última guerra do clã, vale uma guerra normal encerrada depois do início dela: primeiro o arquivo próprio dos dois clãs, depois o ClashKing quando ele está atualizado.</p>' : ''}${state.fetchedAt ? `<p>Última consulta: ${esc(new Date(state.fetchedAt).toLocaleString('pt-BR'))}.</p>` : ''}`;
   }
   function updateCopyControl() {
     const canCopy = Boolean(state.selection?.selected.length) && !state.loading && !state.historyLoading;
@@ -292,7 +294,7 @@
     return `<label class="field"><span>${label}</span><select data-setting="${key}" ${disabled || !canEditRoster() ? 'disabled' : ''}>${options.map(([value, text]) => `<option value="${value}" ${String(state.settings[key]) === String(value) ? 'selected' : ''}>${text}</option>`).join('')}</select>${helper ? `<small>${helper}</small>` : ''}</label>`;
   }
   function renderRules() {
-    $('#rules-view').innerHTML = `<div class="view-heading"><div class="eyebrow">SUA ESTRATÉGIA</div><h2 id="rules-title" tabindex="-1">Os critérios do seu time.</h2><p>As regras seguem o desempenho da guerra anterior, sem penalizar quem ainda não tem registro.</p></div><div class="rules-layout"><section class="settings-panel"><div class="panel-heading"><span class="section-index">01</span><div><h3>Regras da convocação</h3><p>Escudo vermelho bloqueia a seleção normal; a exceção só é usada para fechar o tamanho da guerra.</p></div></div><div class="rule-list">${fixedRule('Escudo vermelho', 'Só entra como última opção quando o arredondamento para cima deixa vagas para completar.', 'shield')}${fixedRule('Dois ataques e ao menos 1 estrela', 'Aplicado a quem participou da última guerra concluída do clã.', 'swords')}${fixedRule('Sem registro da guerra anterior', 'Permanece elegível; falta de dados não é motivo para excluir.', 'users')}${toggleSetting('usePlayerHistoryFallback', 'Consultar histórico pessoal', 'Desligado por padrão. Se faltar registro do clã, consulta a última guerra normal concluída do jogador, inclusive em outro clã.', 'clock')}</div></section>
+    $('#rules-view').innerHTML = `<div class="view-heading"><div class="eyebrow">SUA ESTRATÉGIA</div><h2 id="rules-title" tabindex="-1">Os critérios do seu time.</h2><p>As regras seguem o desempenho da guerra anterior, sem penalizar quem ainda não tem registro.</p></div><div class="rules-layout"><section class="settings-panel"><div class="panel-heading"><span class="section-index">01</span><div><h3>Regras da convocação</h3><p>Escudo vermelho bloqueia a seleção normal; a exceção só é usada para fechar o tamanho da guerra.</p></div></div><div class="rule-list">${fixedRule('Escudo vermelho', 'Só entra como última opção quando o arredondamento para cima deixa vagas para completar.', 'shield')}${fixedRule('Dois ataques e ao menos 1 estrela', 'Aplicado a quem participou da última guerra concluída do clã.', 'swords')}${fixedRule('Sem registro da guerra anterior', 'Permanece elegível; falta de dados não é motivo para excluir.', 'users')}${toggleSetting('usePlayerHistoryFallback', 'Consultar histórico recente', 'Ligado por padrão. Para quem não jogou a última guerra do clã, usa uma guerra normal encerrada depois do início dela: primeiro o arquivo dos dois clãs da família, depois o ClashKing, se estiver atualizado.', 'clock')}</div></section>
       <section class="settings-panel"><div class="panel-heading"><span class="section-index">02</span><div><h3>Fechar o tamanho da guerra</h3><p>O tamanho padrão é calculado pelos jogadores com escudo verde.</p></div></div><div class="fields-grid">${selectField('rankBy', 'Ordenar a lista por', [['activity', 'Atividade: troféus e ranking'], ['position', 'Posição no clã'], ['th', 'Centro da Vila mais alto'], ['performance', 'Desempenho na última guerra'], ['name', 'Nome do jogador']], state.loading, 'A opção de atividade prioriza troféus e posição no clã. O CV não define essa ordem.')}</div><p class="settings-note">${icon('alert')}Times válidos têm 5, 10, 15… até 50 jogadores. Ex.: 36/37 disponíveis viram 35; 38/39 viram 40. Ao completar, entram os próximos reforços pela atividade do clã (troféus e ranking), sem priorizar CV. Escudos vermelhos só entram por último se ainda houver vagas. Bloqueios manuais sempre valem.</p></section>
       <section class="settings-panel priority-panel"><div class="panel-heading"><span class="section-index">03</span><div><h3>Ajustes da liderança</h3><p>Priorize ou bloqueie jogadores nos detalhes da lista.</p></div></div><div class="priority-counts"><span><b>${state.settings.whitelist.length}</b> na prioridade</span><span><b>${state.settings.blacklist.length}</b> bloqueados</span></div><p class="muted">A lista de prioridade pode superar critérios de desempenho, mas não remove bloqueios manuais. Escudos vermelhos só podem entrar pela regra de última opção para fechar uma guerra arredondada para cima. Os ajustes são locais a este navegador. Somente a liderança logada deste clã pode alterá-los.</p><button type="button" class="button secondary" data-command="all-players">Gerenciar jogadores ${icon('arrow')}</button></section></div><button type="button" class="button primary rules-back" data-view="team">Ver time atualizado ${icon('arrow')}</button>`;
   }
@@ -475,41 +477,78 @@
     }
 
     state.historyLoading = true;
-    state.status = `Consultando histórico pessoal: 0/${candidates.length} jogadores…`;
+    state.status = 'Consultando o arquivo da família…';
     if (!state.loading) render(); else renderStatus();
+    const ts = window.ClashKing.timestamp;
+    // One war counts once: only a war that ended after our last war began is new
+    // evidence. Older results were already available when the last war was formed.
+    const since = Math.max(Number.isFinite(ts(state.lastWar?.preparationStartTime)) ? ts(state.lastWar.preparationStartTime) : -Infinity, Date.now() - 14 * 86400000);
+    const recent = (war) => war && war.state === 'warEnded' && Number(war.attacksPerMember) === 2 && war.type !== 'cwl' && war.type !== 'friendly'
+      && Number.isFinite(ts(war.endTime)) && ts(war.endTime) > since && ts(war.endTime) <= Date.now();
     const warsByTag = new Map();
     const statusesByTag = new Map();
+    const others = C.clans.filter((clan) => clan.tag !== state.clanTag);
+    const lists = await Promise.allSettled(others.map((clan) => window.ClanAPI.loadClanWars(clan.tag)));
+    if (token !== state.historyToken || !state.settings.usePlayerHistoryFallback) return;
+    const family = [{ tag: state.clanTag, items: state.familyWars }, ...others.map((clan, index) => ({ tag: clan.tag, items: lists[index].status === 'fulfilled' ? lists[index].value.items || [] : [] }))];
+    for (const { tag: clanTag, items } of family) {
+      for (const war of items.filter((item) => recent(item) && item.capture?.complete !== false)) {
+        for (const member of candidates) {
+          const tag = E.normalizeTag(member.tag);
+          const personal = window.WarStats.memberWar(war, clanTag, tag);
+          if (personal && (!warsByTag.has(tag) || ts(personal.endTime) > ts(warsByTag.get(tag).endTime))) {
+            warsByTag.set(tag, personal);
+            statusesByTag.set(tag, 'found');
+          }
+        }
+      }
+    }
+    const remaining = candidates.filter((member) => !warsByTag.has(E.normalizeTag(member.tag)));
+    // ClashKing only fills gaps when it is not behind our archive or the official log.
+    const freshness = state.historyFreshness || {};
+    const reference = Math.max(...[freshness.archiveLatestEnd, freshness.officialLatestEnd].map(ts).filter(Number.isFinite));
+    const clashkingEnd = ts(freshness.clashkingLatestEnd);
+    const clashkingFresh = Number.isFinite(reference) && Number.isFinite(clashkingEnd) && clashkingEnd >= reference - 30 * 60000;
     let checked = 0;
     let failed = 0;
-    for (let offset = 0; offset < candidates.length; offset += 3) {
-      const batch = candidates.slice(offset, offset + 3);
-      const results = await Promise.allSettled(batch.map((member) => window.ClanAPI.loadPlayerStats(member.tag)));
-      if (token !== state.historyToken || !state.settings.usePlayerHistoryFallback) return;
-      results.forEach((result, index) => {
-        const tag = E.normalizeTag(batch[index].tag);
-        if (result.status === 'rejected') {
-          statusesByTag.set(tag, 'unavailable');
-          failed += 1;
-          return;
-        }
-        const war = window.WarStats.latestCompletedRegularWar(result.value.items || []);
-        if (war) {
-          warsByTag.set(tag, war);
-          statusesByTag.set(tag, 'found');
-        } else statusesByTag.set(tag, 'none');
-      });
-      checked += batch.length;
-      state.status = `Consultando histórico pessoal: ${checked}/${candidates.length} jogadores…`;
+    if (!clashkingFresh) remaining.forEach((member) => statusesByTag.set(E.normalizeTag(member.tag), 'stale'));
+    else {
+      state.status = `Consultando histórico no ClashKing: 0/${remaining.length} jogadores…`;
       renderStatus();
+      for (let offset = 0; offset < remaining.length; offset += 3) {
+        const batch = remaining.slice(offset, offset + 3);
+        const results = await Promise.allSettled(batch.map((member) => window.ClanAPI.loadPlayerStats(member.tag)));
+        if (token !== state.historyToken || !state.settings.usePlayerHistoryFallback) return;
+        results.forEach((result, index) => {
+          const tag = E.normalizeTag(batch[index].tag);
+          if (result.status === 'rejected') {
+            statusesByTag.set(tag, 'unavailable');
+            failed += 1;
+            return;
+          }
+          const war = window.WarStats.latestCompletedRegularWar(result.value.items || []);
+          if (recent(war)) {
+            warsByTag.set(tag, { ...war, sourceLabel: 'ClashKing' });
+            statusesByTag.set(tag, 'found');
+          } else statusesByTag.set(tag, 'none');
+        });
+        checked += batch.length;
+        state.status = `Consultando histórico no ClashKing: ${checked}/${remaining.length} jogadores…`;
+        renderStatus();
+      }
     }
     if (token !== state.historyToken || !state.settings.usePlayerHistoryFallback) return;
     state.personalWarByTag = warsByTag;
     state.personalHistoryStatusByTag = statusesByTag;
     state.historyLoading = false;
     state.status = '';
-    state.historyLookupWarning = failed
-      ? `Não foi possível consultar o histórico de ${failed} jogador(es). Sem registro verificável, eles permanecem elegíveis.`
-      : '';
+    const warnings = [];
+    if (!clashkingFresh && remaining.length) {
+      const date = Number.isFinite(clashkingEnd) ? ` (última guerra em ${new Date(clashkingEnd).toLocaleDateString('pt-BR')})` : '';
+      warnings.push(`O ClashKing está desatualizado${date}. ${remaining.length} jogador(es) sem registro no arquivo da família permanecem elegíveis.`);
+    }
+    if (failed) warnings.push(`Não foi possível consultar o histórico de ${failed} jogador(es). Sem registro verificável, eles permanecem elegíveis.`);
+    state.historyLookupWarning = warnings.join(' ');
     if (!state.loading) render(); else renderStatus();
   }
   async function loadClan(tag = state.clanTag) {
@@ -522,6 +561,7 @@
     state.clanTag = normalized; state.clanName = C.find(normalized).name; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
     window.CwlApp.setContext(normalized, false);
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false; state.historyLookupWarning = '';
+    state.historyFreshness = null; state.familyWars = [];
     state.source = ''; state.dataWarnings = []; state.fetchedAt = ''; state.error = ''; state.loading = true;
     state.loadStages = null; state.memberProgress = null; state.currentWarFilter = 'all'; state.warQuery = ''; state.previousWarExpanded = false;
     state.status = 'Consultando membros, escudos e guerras…'; state.expanded.clear();
@@ -562,6 +602,9 @@
       state.lastWar = data.lastWar ? E.buildWar(data.lastWar) : null;
       state.currentWar = data.currentWar ? E.buildWar(data.currentWar) : null;
       state.source = 'worker'; state.fetchedAt = data.fetchedAt; state.dataWarnings = data.warnings;
+      state.historyFreshness = data.historyFreshness || null; state.familyWars = data.familyWars || [];
+      // Other renders may run while the history is consulted; keep the selection in sync with the members.
+      updateSelection();
       if (state.settings.usePlayerHistoryFallback) await loadPersonalHistoryFallback();
       saveSettings(); audit('clan_load_succeeded');
     } catch (error) { state.error = error.message || 'Tente novamente em alguns instantes.'; audit('clan_load_failed'); }
@@ -685,7 +728,7 @@
   function selectionTSV() {
     if (!state.selection?.selected.length) return '';
     const rows = [['Ordem', 'Jogador', 'Tag', 'Cargo', 'Centro da Vila', 'Escudo', 'Fonte do desempenho', 'Ataques', '1º ataque (estrelas)', '2º ataque (estrelas)', 'Estrelas', 'Novas estrelas', 'Ataques com 3 estrelas', 'Convocação']];
-    state.selection.selected.forEach((row, index) => rows.push([index + 1, row.member.name, '#' + row.member.tag, roleNames[row.member.role] || row.member.role, row.member.th, prefNames[row.member.pref], row.usedPersonalHistory ? 'Histórico pessoal' : row.inWar ? 'Última guerra do clã' : '', row.criteriaPerf?.attacks ?? '', row.criteriaPerf?.firstAttackStars ?? '', row.criteriaPerf?.secondAttackStars ?? '', row.criteriaPerf?.stars ?? '', row.inWar ? row.perf.newStars : '', row.criteriaPerf?.triples ?? '', reason(row).label]));
+    state.selection.selected.forEach((row, index) => rows.push([index + 1, row.member.name, '#' + row.member.tag, roleNames[row.member.role] || row.member.role, row.member.th, prefNames[row.member.pref], row.usedPersonalHistory ? (row.historyWar?.sourceLabel || 'Histórico pessoal') : row.inWar ? 'Última guerra do clã' : '', row.criteriaPerf?.attacks ?? '', row.criteriaPerf?.firstAttackStars ?? '', row.criteriaPerf?.secondAttackStars ?? '', row.criteriaPerf?.stars ?? '', row.inWar ? row.perf.newStars : '', row.criteriaPerf?.triples ?? '', reason(row).label]));
     return rows.map((row) => row.map(tsvCell).join('\t')).join('\r\n');
   }
   function fallbackCopy(text) {

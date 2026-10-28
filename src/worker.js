@@ -3,6 +3,9 @@ import { CwlError } from './cwl/errors.js';
 import { sourceProxy } from './cwl/source-proxy.js';
 import { bridgeCwl } from './cwl/bridge.js';
 import { clientKey } from './cwl/rate-limit.js';
+import { captureWars, backendRequest } from './war-capture.js';
+import { officialJson, officialSource, clanPath } from './official-api.js';
+import { mergeWarHistory, historyFreshness } from './war-history.js';
 const PROFILE_API = 'https://clashapi.colinschmale.dev';
 const HISTORY_API = 'https://api.clashk.ing';
 const TTL = 60;
@@ -279,10 +282,7 @@ async function api(request, ctx, env, cwlHandler = handleCwl) {
   if (!match) return json({ error: 'Rota não encontrada.' }, 404);
   const tag = tagOf(decodeURIComponent(match[1]));
   const encoded = encodeURIComponent('#' + tag);
-  if (match[2] === 'wars') {
-    const result = await upstream(HISTORY_API, `/v2/clan/${encoded}/wars?limit=5`, ctx);
-    return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashking' });
-  }
+  if (match[2] === 'wars') return json(await warHistory(tag, encoded, ctx, env));
   if (match[2] === 'currentwar') {
     const result = await upstream(PROFILE_API, `/v1/clans/${encoded}/currentwar`, ctx);
     return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashapi.colinschmale.dev' });
@@ -302,7 +302,30 @@ async function api(request, ctx, env, cwlHandler = handleCwl) {
   return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashapi.colinschmale.dev' });
 }
 
+// Our capture of the official current war is merged with ClashKing, which
+// stopped archiving after 20/10/2026. Each source may fail independently.
+async function warHistory(tag, encoded, ctx, env) {
+  const archiveReady = Boolean(env.CWL_BACKEND_URL && env.CWL_BACKEND_KEY && env.CWL_PUBLIC_ORIGIN);
+  const [clashking, archive, warlog] = await Promise.all([
+    upstream(HISTORY_API, `/v2/clan/${encoded}/wars?limit=5`, ctx).then(result => result.data?.items, () => null),
+    archiveReady ? backendRequest(env, '/api/cwl/war-archive/clans/' + encodeURIComponent(tag) + '?limit=10').then(data => data.items, () => null) : null,
+    officialSource(env) ? officialJson(clanPath(tag, 'warlog', 5), env).then(data => data.items, () => null) : null,
+  ]);
+  const ckItems = Array.isArray(clashking) ? clashking : null, archiveItems = Array.isArray(archive) ? archive : null;
+  if (!ckItems && !archiveItems) throw new APIError(502, 'O histórico de guerras está temporariamente indisponível.');
+  return {
+    items: mergeWarHistory(tag, archiveItems || [], ckItems || []),
+    fetchedAt: new Date().toISOString(), source: 'war-archive+clashking',
+    sources: { archive: archiveItems ? 'ok' : archiveReady ? 'unavailable' : 'not_configured', clashking: ckItems ? 'ok' : 'unavailable',
+      officialWarlog: Array.isArray(warlog) ? 'ok' : officialSource(env) ? 'unavailable' : 'not_configured' },
+    freshness: historyFreshness(archiveItems, ckItems, Array.isArray(warlog) ? warlog : null),
+  };
+}
+
 export function createWorker(cwlHandler = handleCwl) { return {
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(captureWars(env, { now: controller.scheduledTime || Date.now() }));
+  },
   async fetch(request, env, ctx) {
     const startedAt = Date.now();
     const url = new URL(request.url);
@@ -326,6 +349,8 @@ export function createWorker(cwlHandler = handleCwl) { return {
     if (url.pathname === '/api/audit' && (!origin || !allowedOrigin)) {
       return logApiRequest(request, json({ error: 'Origem não permitida.' }, 403), startedAt);
     }
+    // The war archive is written only by the scheduled poller, never by visitors.
+    if (url.pathname.startsWith('/api/cwl/war-archive/')) return logApiRequest(request, cors(json({ error: 'Rota não encontrada.' }, 404)), startedAt);
     const backend = url.pathname.startsWith('/api/cwl/') && url.pathname !== '/api/cwl/source';
     const limiter = backend ? env.CWL_API_LIMITER : env.PUBLIC_API_LIMITER;
     if (limiter) {

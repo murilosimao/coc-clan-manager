@@ -27,5 +27,20 @@
       && window.ClashKing.timestamp(war.endTime) <= Date.now())
       .sort((a, b) => window.ClashKing.timestamp(b.endTime) - window.ClashKing.timestamp(a.endTime))[0] || null;
   }
-  window.WarStats = { summarize, latestCompletedRegularWar };
+  // A family clan's war (our capture or ClashKing) seen from one member, in the
+  // same shape as the personal ClashKing history.
+  function memberWar(war, clanTag, playerTag) {
+    const tagOf = window.ClashKing.tagOf;
+    const side = [war?.clan, war?.opponent].find((value) => tagOf(value?.tag) === tagOf(clanTag));
+    const member = side?.members?.find((value) => tagOf(value.tag) === tagOf(playerTag));
+    if (!member) return null;
+    const other = side === war.clan ? war.opponent : war.clan;
+    return {
+      type: war.type || 'random', state: war.state, attacksPerMember: Number(war.attacksPerMember) || 2,
+      endTime: war.endTime, clan: { name: side.name }, opponent: { name: other?.name },
+      attacks: (member.attacks || []).map((attack) => ({ stars: attack.stars, destructionPercentage: attack.destructionPercentage, order: attack.order })),
+      sourceLabel: war.source === 'war-archive' ? 'Arquivo da família' : 'ClashKing',
+    };
+  }
+  window.WarStats = { summarize, latestCompletedRegularWar, memberWar };
 })();

@@ -74,6 +74,8 @@
     let members = [];
     let lastWar = null;
     let currentWar = null;
+    let historyFreshness = null;
+    let familyWars = [];
 
     const publishLastWar = (candidate) => {
       if (!candidate || (lastWar && timestamp(lastWar.endTime) >= timestamp(candidate.endTime))) return false;
@@ -141,14 +143,28 @@
       try {
         const data = await request(pathFor(tag) + '/wars');
         const wars = Array.isArray(data.items) ? data.items : [];
+        historyFreshness = data.freshness || null;
+        familyWars = wars;
         const latest = wars.filter((war) => war.state === 'warEnded' && timestamp(war.endTime) <= Date.now())
           .sort((a, b) => timestamp(b.endTime) - timestamp(a.endTime))[0];
         let published = false;
         if (latest) {
           const normalized = normalizeWar(latest, tag);
+          normalized.source = latest.source === 'war-archive' ? 'war-archive' : 'clashking';
+          normalized.captureComplete = latest.capture?.complete !== false;
+          normalized.capturedAt = latest.capture?.observedAt || null;
           if (normalized.sourceComplete) published = publishLastWar(normalized);
           else addWarning('A última guerra armazenada está incompleta. Seu desempenho não foi usado na seleção.');
+          if (normalized.sourceComplete && !normalized.captureComplete) {
+            addWarning('A captura da última guerra terminou antes do resultado final. Quem não cumpriu os critérios nesse registro parcial permanece elegível.');
+          }
+          // The official log has every ended war, but only totals; flag a gap in the detailed sources.
+          const official = timestamp(historyFreshness?.officialLatestEnd);
+          if (Number.isFinite(official) && official > timestamp(latest.endTime) + 10 * 60000) {
+            addWarning(`Há guerra encerrada em ${new Date(official).toLocaleDateString('pt-BR')} sem os ataques registrados. A convocação usa a guerra de ${new Date(timestamp(latest.endTime)).toLocaleDateString('pt-BR')}, a mais recente com detalhes.`);
+          }
         } else addWarning('Nenhuma guerra concluída disponível no histórico.');
+        if (data.sources?.archive === 'unavailable') addWarning('O arquivo próprio de guerras não respondeu; o histórico usa somente o ClashKing.');
         if (!published) onData({ type: 'lastWar', lastWar });
         setStage('history', 'done');
       } catch {
@@ -180,10 +196,15 @@
     const [clanResult] = await Promise.allSettled([clanTask, historyTask, currentWarTask]);
     if (clanResult.status !== 'fulfilled') throw clanResult.reason;
     return {
-      clan, members, lastWar, currentWar, warnings,
+      clan, members, lastWar, currentWar, warnings, historyFreshness, familyWars,
       fetchedAt: new Date().toISOString(), profileFetchedAt: clan.fetchedAt,
       memberSource: 'clashapi.colinschmale.dev',
     };
+  }
+  async function loadClanWars(clanTag) {
+    const tag = tagOf(clanTag);
+    if (!/^[0289PYLQGRJCUV]{3,15}$/.test(tag)) throw new Error('Tag de clã inválida.');
+    return request(pathFor(tag) + '/wars');
   }
   async function loadPlayerStats(playerTag) {
     const tag = tagOf(playerTag);
@@ -214,7 +235,7 @@
     if (!/^\d{8}T\d{6}\.\d{3}Z$/.test(start)) throw new Error('Escolha uma guerra válida.');
     return request(cwlClan(tag) + '/wars/' + encodeURIComponent(start) + '/plan', {auth:true});
   }
-  window.ClanAPI = { loadClan, loadPlayerStats, loadScoreHistory, audit,
+  window.ClanAPI = { loadClan, loadClanWars, loadPlayerStats, loadScoreHistory, audit,
     cwlApiOrigin:API_ORIGIN||location.origin,
     cwlLoginUrl:API_ORIGIN?API_ORIGIN+'/?view=cwl':null,
     loadCwlSession:()=>API_ORIGIN?Promise.resolve({authenticated:false}):request('/api/cwl/auth/session',{auth:true}),
