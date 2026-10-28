@@ -15,9 +15,9 @@
   const viewTitles = { team: 'Time de guerra', rules: 'Critérios', war: 'Guerras', cwl: 'Liga CWL' };
   const state = {
     clanTag: E.DEFAULT_CLAN, clanName: '', clanBadgeUrl: '', members: [], lastWar: null, currentWar: null,
-    settings: structuredClone(E.DEFAULT_SETTINGS), selection: null, source: '', fetchedAt: '',
+    settings: structuredClone(E.DEFAULT_SETTINGS), selection: null, selectionHistoryAvailable: true, source: '', fetchedAt: '',
     dataWarnings: [], loading: false, status: '', error: '', loadStages: null, memberProgress: null, view: 'team', filter: 'selected',
-    personalWarByTag: new Map(), personalHistoryStatusByTag: new Map(), historyLoading: false,
+    personalWarByTag: new Map(), personalHistoryStatusByTag: new Map(), managedWarByTag: new Map(), historyLoading: false,
     historyLookupWarning: '', historyToken: 0,
     query: '', warQuery: '', currentWarFilter: 'all', expanded: new Set(), previousWarExpanded: false, advancedOpen: false,
   };
@@ -117,11 +117,12 @@
     if (row.trimmed) return { label: 'Sem vaga neste time', tone: 'muted', detail: 'O jogador atende às regras, mas ficou entre os últimos após o ajuste para um tamanho válido.' };
     if (row.exception) return { label: 'Exceção para completar', tone: 'gold', detail: `${row.softReasons.join(' · ') || 'Incluído para completar o tamanho do time.'}${row.usedPersonalHistory ? ` ${personalHistoryDetail(row.historyWar)}` : ''}` };
     if (row.softReasons.length) return { label: row.usedPersonalHistory ? 'Histórico abaixo das regras' : 'Desempenho abaixo das regras', tone: 'muted', detail: `${row.softReasons.join(' · ')}${row.usedPersonalHistory ? `. ${personalHistoryDetail(row.historyWar)}` : ''}` };
-    if (row.usedPersonalHistory) return { label: 'Histórico pessoal aprovado', tone: 'blue', detail: personalHistoryDetail(row.historyWar) };
+    if (row.usedPersonalHistory) return { label: row.usedManagedHistory ? 'Histórico dos clãs aprovado' : 'Histórico pessoal aprovado', tone: 'blue', detail: personalHistoryDetail(row.historyWar) };
     if (!row.inWar) {
+      if (!state.selectionHistoryAvailable) return { label: 'Histórico recente indisponível', tone: 'gold', detail: 'A fonte não forneceu a última guerra confirmada. O histórico antigo não foi usado para excluir este jogador. Ele permanece elegível enquanto o registro recente não está disponível.' };
       if (row.historyStatus === 'unavailable') return { label: 'Histórico indisponível · mantido', tone: 'gold', detail: 'A consulta ao histórico falhou. Sem registro da guerra anterior, o jogador permanece elegível.' };
       if (row.historyStatus === 'none') return { label: 'Sem histórico · mantido', tone: 'blue', detail: 'Não há guerra normal anterior registrada. A ausência de dados não exclui o jogador.' };
-      return { label: 'Sem registro · mantido', tone: 'blue', detail: 'Sem participação registrada na última guerra do clã. A ausência de dados não exclui o jogador.' };
+      return { label: 'Sem registro · mantido', tone: 'blue', detail: 'Sem participação registrada no histórico consultado dos dois clãs. A ausência de dados não exclui o jogador.' };
     }
     if (row.eligible) return { label: 'Critérios atendidos', tone: 'green', detail: 'Fez os dois ataques e marcou ao menos uma estrela na última guerra concluída.' };
     return { label: 'Desempenho abaixo das regras', tone: 'muted', detail: row.softReasons.join(' · ') };
@@ -149,12 +150,12 @@
     if (!Number.isInteger(n) || n < 1 || n > 18) return `<span class="th-badge" role="img" aria-label="Centro da Vila ${esc(level ?? 'não informado')}"><small>CV</small><b>${esc(level ?? '—')}</b></span>`;
     return `<span class="th-badge has-image" role="img" aria-label="Centro da Vila ${n}"><img src="portal/images/townhalls/th${n}.webp" alt="" width="44" height="44" loading="lazy" decoding="async" data-visual="townhall"><span class="th-fallback">CV</span><span class="th-level">${n}</span></span>`;
   }
-  function attackMetric(stars, label, tag = 'div') {
+  function attackMetric(stars, label, tag = 'div', missed = false) {
     const known = stars !== null && stars !== undefined;
-    return `<${tag} class="player-stat attack-stat"><b>${known ? esc(stars) + icon('star', Number(stars) > 0 ? 'filled' : '') : '—'}</b><span>${label}</span></${tag}>`;
+    return `<${tag} class="player-stat attack-stat"><b>${known ? esc(stars) + icon('star', Number(stars) > 0 ? 'filled' : '') : missed ? '<small>Não usado</small>' : '—'}</b><span>${label}</span></${tag}>`;
   }
   function updateSelection() {
-    state.selection = state.members.length ? E.selectTeam(state.members, state.lastWar, state.settings, state.currentWar, state.personalWarByTag, state.personalHistoryStatusByTag) : null;
+    state.selection = state.members.length ? E.selectTeam(state.members, state.selectionHistoryAvailable && !state.loading ? state.lastWar : null, state.settings, state.currentWar, state.personalWarByTag, state.personalHistoryStatusByTag, state.managedWarByTag) : null;
   }
   function render() {
     updateSelection(); renderHeader(); renderStatus(); renderTeam(); renderRules(); renderWar();
@@ -249,8 +250,8 @@
   function renderRail() {
     const s = state.selection;
     const current = state.currentWar;
-    const rules = ['Tamanho padrão calculado pelos escudos verdes disponíveis', 'Jogadores com registro: 2 ataques e ao menos 1 estrela', 'Sem registro não significa exclusão', 'Reforços por troféus e ranking; escudo vermelho só como última opção'];
-    return `<aside class="summary-rail" aria-label="Contexto da seleção"><section class="rail-block"><div class="rail-title">${icon('sliders')}Critérios ativos</div><ul class="active-rules">${rules.map((label) => `<li>${icon('check')}${label}</li>`).join('')}</ul><button type="button" class="button secondary full" data-view="rules">Ver critérios ${icon('arrow')}</button></section><section class="rail-block current-war"><div class="rail-title">${icon('swords')}Guerra atual</div><strong>${current ? `${current.header.sizeHome} × ${current.header.sizeAway}` : 'Sem dados atuais'}</strong><p>${current ? esc(current.result.label?.toLowerCase() || 'Em andamento') : 'A fonte não informou uma guerra atual.'}</p><button type="button" class="text-button" data-view="war">Ver relatório ${icon('arrow')}</button></section>${s.warnings.length ? `<section class="rail-block selection-notes"><div class="rail-title">${icon('alert')}Sobre este time</div>${s.warnings.map((w) => `<p>${esc(w)}</p>`).join('')}</section>` : ''}<div class="rail-note">Desempenho da última guerra concluída. As preferências são consultadas no perfil de cada jogador.</div></aside>`;
+    const rules = ['Tamanho padrão calculado pelos escudos verdes disponíveis', 'Histórico dos dois clãs: 2 ataques e ao menos 1 estrela', 'Sem registro não significa exclusão', 'Reforços por troféus e ranking; escudo vermelho só como última opção'];
+    return `<aside class="summary-rail" aria-label="Contexto da seleção"><section class="rail-block"><div class="rail-title">${icon('sliders')}Critérios ativos</div><ul class="active-rules">${rules.map((label) => `<li>${icon('check')}${label}</li>`).join('')}</ul><button type="button" class="button secondary full" data-view="rules">Ver critérios ${icon('arrow')}</button></section><section class="rail-block current-war"><div class="rail-title">${icon('swords')}Guerra atual</div><strong>${current ? `${current.header.sizeHome} × ${current.header.sizeAway}` : 'Sem dados atuais'}</strong><p>${current ? esc(current.result.label?.toLowerCase() || 'Em andamento') : 'A fonte não informou uma guerra atual.'}</p><button type="button" class="text-button" data-view="war">Ver relatório ${icon('arrow')}</button></section>${s.warnings.length ? `<section class="rail-block selection-notes"><div class="rail-title">${icon('alert')}Sobre este time</div>${s.warnings.map((w) => `<p>${esc(w)}</p>`).join('')}</section>` : ''}<div class="rail-note">Última participação disponível nos dois clãs, conferida com o resumo atual. As preferências vêm do perfil de cada jogador.</div></aside>`;
   }
   function filteredRows() {
     const s = state.selection;
@@ -272,13 +273,13 @@
     const selected = new Set(state.selection.selected.map((r) => r.member.tag));
     container.innerHTML = `<div class="roster-columns" aria-hidden="true"><span>Jogador</span><span>Escudo</span><span>1º ataque</span><span>2º ataque</span><span>Total</span><span>Convocação</span><span></span></div>${rows.length ? `<div class="player-list">${rows.map((row) => {
       const member = row.member; const why = reason(row); const isSelected = selected.has(member.tag);
-      const historyShownInReason = row.usedPersonalHistory && ['Histórico abaixo das regras', 'Histórico pessoal aprovado', 'Exceção para completar'].includes(why.label);
-      const previousWarDetail = row.inWar
-        ? `${row.attacks} ataques usados · ${row.stars} estrelas na última guerra do clã.`
-        : row.usedPersonalHistory
-          ? `Sem participação registrada na última guerra do clã.${historyShownInReason ? '' : ` ${personalHistoryDetail(row.historyWar)}`}`
-          : 'Sem participação registrada na última guerra do clã. A ausência de registro não exclui o jogador.';
-      return `<article class="player-row ${isSelected ? 'is-selected' : ''}" data-player="${esc(member.tag)}"><div class="player-line"><div class="player-identity">${townHall(member.th)}<div class="player-name"><h3>${esc(member.name)}</h3><span>${esc(roleNames[member.role] || member.role || 'Membro')}<i> · </i>#${member.position ?? '—'} no clã</span></div></div><div class="player-availability">${shield(member.pref)}</div>${attackMetric(row.perf?.firstAttackStars, '1º ataque')}${attackMetric(row.perf?.secondAttackStars, '2º ataque')}<div class="player-stat gold-stat"><b>${row.inWar ? row.perf.stars : '—'}</b><span>total</span></div><div class="player-reason"><span class="reason ${why.tone}"><i class="dot ${why.tone}"></i>${why.label}</span></div><div class="player-action">${rowAction(row, isSelected)}</div></div><details class="player-details" data-expand="${esc(member.tag)}" ${state.expanded.has(member.tag) ? 'open' : ''}><summary><span>Ver detalhes</span>${icon('chevron')}</summary><div class="player-detail-content"><div class="detail-copy"><span class="tag-code">#${esc(member.tag)}</span><p>${esc(why.detail)}</p><p class="muted">${esc(previousWarDetail)}</p></div><div class="player-options"><button type="button" class="button small secondary" data-stats="${esc(member.tag)}">${icon('star')}Histórico e estatísticas</button>${canEditRoster() ? `<button type="button" class="button small ${row.whitelisted ? 'active-option' : 'secondary'}" data-action="priority" data-tag="${esc(member.tag)}" aria-pressed="${row.whitelisted}">${icon('flag')}${row.whitelisted ? 'Prioridade ativa' : 'Priorizar jogador'}</button><button type="button" class="button small ${row.blacklisted ? 'danger' : 'secondary'}" data-action="block" data-tag="${esc(member.tag)}" aria-pressed="${row.blacklisted}">${icon('x')}${row.blacklisted ? 'Remover bloqueio' : 'Bloquear no time'}</button>` : ''}</div></div></details></article>`;
+      const historyShownInReason = row.usedPersonalHistory && ['Histórico abaixo das regras', 'Histórico pessoal aprovado', 'Histórico dos clãs aprovado', 'Exceção para completar'].includes(why.label);
+      const previousWarDetail = row.usedPersonalHistory
+        ? (historyShownInReason ? (row.usedManagedHistory ? 'Histórico compartilhado entre principal e secundária.' : 'Histórico pessoal considerado.') : personalHistoryDetail(row.historyWar))
+        : row.inWar
+        ? `${row.attacks} ataques usados · ${row.stars} estrelas na guerra de ${new Date(window.ClashKing.timestamp(state.lastWar.endTime)).toLocaleDateString('pt-BR')} pelo clã ${state.clanName}.`
+        : 'Sem participação registrada no histórico consultado dos dois clãs. A ausência de registro não exclui o jogador.';
+      return `<article class="player-row ${isSelected ? 'is-selected' : ''}" data-player="${esc(member.tag)}"><div class="player-line"><div class="player-identity">${townHall(member.th)}<div class="player-name"><h3>${esc(member.name)}</h3><span>${esc(roleNames[member.role] || member.role || 'Membro')}<i> · </i>#${member.position ?? '—'} no clã</span></div></div><div class="player-availability">${shield(member.pref)}</div>${attackMetric(row.perf?.firstAttackStars, '1º ataque', 'div', Boolean(row.criteriaPerf))}${attackMetric(row.perf?.secondAttackStars, '2º ataque', 'div', Boolean(row.criteriaPerf))}<div class="player-stat gold-stat"><b>${row.criteriaPerf ? row.perf.stars : '—'}</b><span>total</span></div><div class="player-reason"><span class="reason ${why.tone}"><i class="dot ${why.tone}"></i>${why.label}</span></div><div class="player-action">${rowAction(row, isSelected)}</div></div><details class="player-details" data-expand="${esc(member.tag)}" ${state.expanded.has(member.tag) ? 'open' : ''}><summary><span>Ver detalhes</span>${icon('chevron')}</summary><div class="player-detail-content"><div class="detail-copy"><span class="tag-code">#${esc(member.tag)}</span><p>${esc(why.detail)}</p><p class="muted">${esc(previousWarDetail)}</p></div><div class="player-options"><button type="button" class="button small secondary" data-stats="${esc(member.tag)}">${icon('star')}Histórico e estatísticas</button>${canEditRoster() ? `<button type="button" class="button small ${row.whitelisted ? 'active-option' : 'secondary'}" data-action="priority" data-tag="${esc(member.tag)}" aria-pressed="${row.whitelisted}">${icon('flag')}${row.whitelisted ? 'Prioridade ativa' : 'Priorizar jogador'}</button><button type="button" class="button small ${row.blacklisted ? 'danger' : 'secondary'}" data-action="block" data-tag="${esc(member.tag)}" aria-pressed="${row.blacklisted}">${icon('x')}${row.blacklisted ? 'Remover bloqueio' : 'Bloquear no time'}</button>` : ''}</div></div></details></article>`;
     }).join('')}</div>` : `<div class="empty-search">${icon('search')}<h3>Nenhum jogador encontrado</h3><p>Tente outro nome, tag ou filtro.</p></div>`}<div class="list-count" aria-live="polite">${rows.length} ${rows.length === 1 ? 'jogador exibido' : 'jogadores exibidos'}${state.query ? ' nesta busca' : ''}</div>`;
     $$('#roster-content details').forEach((node) => node.addEventListener('toggle', () => { if (node.open) state.expanded.add(node.dataset.expand); else state.expanded.delete(node.dataset.expand); }));
   }
@@ -292,7 +293,7 @@
     return `<label class="field"><span>${label}</span><select data-setting="${key}" ${disabled || !canEditRoster() ? 'disabled' : ''}>${options.map(([value, text]) => `<option value="${value}" ${String(state.settings[key]) === String(value) ? 'selected' : ''}>${text}</option>`).join('')}</select>${helper ? `<small>${helper}</small>` : ''}</label>`;
   }
   function renderRules() {
-    $('#rules-view').innerHTML = `<div class="view-heading"><div class="eyebrow">SUA ESTRATÉGIA</div><h2 id="rules-title" tabindex="-1">Os critérios do seu time.</h2><p>As regras seguem o desempenho da guerra anterior, sem penalizar quem ainda não tem registro.</p></div><div class="rules-layout"><section class="settings-panel"><div class="panel-heading"><span class="section-index">01</span><div><h3>Regras da convocação</h3><p>Escudo vermelho bloqueia a seleção normal; a exceção só é usada para fechar o tamanho da guerra.</p></div></div><div class="rule-list">${fixedRule('Escudo vermelho', 'Só entra como última opção quando o arredondamento para cima deixa vagas para completar.', 'shield')}${fixedRule('Dois ataques e ao menos 1 estrela', 'Aplicado a quem participou da última guerra concluída do clã.', 'swords')}${fixedRule('Sem registro da guerra anterior', 'Permanece elegível; falta de dados não é motivo para excluir.', 'users')}${toggleSetting('usePlayerHistoryFallback', 'Consultar histórico pessoal', 'Desligado por padrão. Se faltar registro do clã, consulta a última guerra normal concluída do jogador, inclusive em outro clã.', 'clock')}</div></section>
+    $('#rules-view').innerHTML = `<div class="view-heading"><div class="eyebrow">SUA ESTRATÉGIA</div><h2 id="rules-title" tabindex="-1">Os critérios do seu time.</h2><p>As regras seguem o desempenho da guerra anterior, sem penalizar quem ainda não tem registro.</p></div><div class="rules-layout"><section class="settings-panel"><div class="panel-heading"><span class="section-index">01</span><div><h3>Regras da convocação</h3><p>Escudo vermelho bloqueia a seleção normal; a exceção só é usada para fechar o tamanho da guerra.</p></div></div><div class="rule-list">${fixedRule('Escudo vermelho', 'Só entra como última opção quando o arredondamento para cima deixa vagas para completar.', 'shield')}${fixedRule('Dois ataques e ao menos 1 estrela', 'Usa a última participação conhecida em guerra normal da principal ou secundária.', 'swords')}${fixedRule('Sem registro da guerra anterior', 'Permanece elegível; falta de dados não é motivo para excluir.', 'users')}${toggleSetting('usePlayerHistoryFallback', 'Consultar histórico pessoal', 'Os dois clãs já são consultados automaticamente. Ative para buscar também participações em outros clãs quando faltar registro.', 'clock')}</div></section>
       <section class="settings-panel"><div class="panel-heading"><span class="section-index">02</span><div><h3>Fechar o tamanho da guerra</h3><p>O tamanho padrão é calculado pelos jogadores com escudo verde.</p></div></div><div class="fields-grid">${selectField('rankBy', 'Ordenar a lista por', [['activity', 'Atividade: troféus e ranking'], ['position', 'Posição no clã'], ['th', 'Centro da Vila mais alto'], ['performance', 'Desempenho na última guerra'], ['name', 'Nome do jogador']], state.loading, 'A opção de atividade prioriza troféus e posição no clã. O CV não define essa ordem.')}</div><p class="settings-note">${icon('alert')}Times válidos têm 5, 10, 15… até 50 jogadores. Ex.: 36/37 disponíveis viram 35; 38/39 viram 40. Ao completar, entram os próximos reforços pela atividade do clã (troféus e ranking), sem priorizar CV. Escudos vermelhos só entram por último se ainda houver vagas. Bloqueios manuais sempre valem.</p></section>
       <section class="settings-panel priority-panel"><div class="panel-heading"><span class="section-index">03</span><div><h3>Ajustes da liderança</h3><p>Priorize ou bloqueie jogadores nos detalhes da lista.</p></div></div><div class="priority-counts"><span><b>${state.settings.whitelist.length}</b> na prioridade</span><span><b>${state.settings.blacklist.length}</b> bloqueados</span></div><p class="muted">A lista de prioridade pode superar critérios de desempenho, mas não remove bloqueios manuais. Escudos vermelhos só podem entrar pela regra de última opção para fechar uma guerra arredondada para cima. Os ajustes são locais a este navegador. Somente a liderança logada deste clã pode alterá-los.</p><button type="button" class="button secondary" data-command="all-players">Gerenciar jogadores ${icon('arrow')}</button></section></div><button type="button" class="button primary rules-back" data-view="team">Ver time atualizado ${icon('arrow')}</button>`;
   }
@@ -407,7 +408,7 @@
       const ourName = war.result.clans[ours]?.name || state.clanName || 'Nosso clã';
       const opponentName = war.result.clans[theirs]?.name || 'Adversário';
       const resultStars = `${war.result.stars[ours] ?? '—'} × ${war.result.stars[theirs] ?? '—'}`;
-      content += `<details id="previous-war-disclosure" class="previous-war-disclosure" ${state.previousWarExpanded ? 'open' : ''}><summary><span class="previous-war-summary-copy"><span class="eyebrow">HISTÓRICO</span><strong>Última guerra concluída</strong><small>${war.header.sizeHome} × ${war.header.sizeAway} · ${esc(ourName)} x ${esc(opponentName)}</small></span><span class="previous-war-summary-result"><span class="tag ${resultTone}">${icon(war.result.state === 'win' ? 'check' : 'swords')}${esc(war.result.label)}</span><b>${resultStars}</b></span>${icon('chevron')}</summary><div class="previous-war-content"><div class="previous-war-actions"><button type="button" class="button secondary" data-command="stats">${icon('star')}Estatísticas e CWL</button></div>${renderWarBattle(war, 'history')}</div></details>`;
+      content += `<details id="previous-war-disclosure" class="previous-war-disclosure" ${state.previousWarExpanded ? 'open' : ''}><summary><span class="previous-war-summary-copy"><span class="eyebrow">HISTÓRICO</span><strong>Última guerra disponível</strong><small>${war.header.sizeHome} × ${war.header.sizeAway} · ${esc(ourName)} x ${esc(opponentName)}</small></span><span class="previous-war-summary-result"><span class="tag ${resultTone}">${icon(war.result.state === 'win' ? 'check' : 'swords')}${esc(war.result.label)}</span><b>${resultStars}</b></span>${icon('chevron')}</summary><div class="previous-war-content"><div class="previous-war-actions"><button type="button" class="button secondary" data-command="stats">${icon('star')}Estatísticas e CWL</button></div>${renderWarBattle(war, 'history')}</div></details>`;
     } else if (state.loading && stages.history === 'loading') {
       content += `<section class="war-loading-history skeleton" aria-label="Consultando histórico de guerras"><span></span><i></i><small>Buscando a última guerra concluída…</small></section>`;
     } else {
@@ -465,6 +466,7 @@
     const manuallyExcluded = new Set([...state.settings.blacklist, ...state.settings.forcedOut]);
     const candidates = state.members.filter((member) =>
       !tagsWithClanWarData.has(E.normalizeTag(member.tag))
+      && !state.managedWarByTag.has(E.normalizeTag(member.tag))
       && member.pref !== 'out'
       && !manuallyExcluded.has(E.normalizeTag(member.tag))
     );
@@ -522,6 +524,7 @@
     state.clanTag = normalized; state.clanName = C.find(normalized).name; state.clanBadgeUrl = ''; state.members = []; state.lastWar = null; state.currentWar = null;
     window.CwlApp.setContext(normalized, false);
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false; state.historyLookupWarning = '';
+    state.managedWarByTag = new Map(); state.selectionHistoryAvailable = false;
     state.source = ''; state.dataWarnings = []; state.fetchedAt = ''; state.error = ''; state.loading = true;
     state.loadStages = null; state.memberProgress = null; state.currentWarFilter = 'all'; state.warQuery = ''; state.previousWarExpanded = false;
     state.status = 'Consultando membros, escudos e guerras…'; state.expanded.clear();
@@ -552,12 +555,16 @@
             state.currentWar = update.currentWar ? E.buildWar(update.currentWar) : null;
           } else if (update.type === 'lastWar') {
             state.lastWar = update.lastWar ? E.buildWar(update.lastWar) : null;
+          } else if (update.type === 'managedHistory') {
+            state.managedWarByTag = update.managedWarByTag;
           } else if (update.type === 'warnings') {
             state.dataWarnings = update.warnings;
           }
           render();
         },
       });
+      state.managedWarByTag = data.managedWarByTag || new Map();
+      state.selectionHistoryAvailable = data.selectionHistoryAvailable !== false;
       state.members = data.members; state.clanName = data.clan.name; state.clanBadgeUrl = badgeUrl(data.clan.badgeUrls);
       state.lastWar = data.lastWar ? E.buildWar(data.lastWar) : null;
       state.currentWar = data.currentWar ? E.buildWar(data.currentWar) : null;
@@ -568,6 +575,7 @@
     finally { state.loading = false; render(); }
   }
   async function loadDemo() {
+    state.managedWarByTag = new Map(); state.selectionHistoryAvailable = true;
     window.ScoreUI.reset();
     state.historyToken += 1; state.personalWarByTag = new Map(); state.personalHistoryStatusByTag = new Map(); state.historyLoading = false;
     state.loading = true; state.loadStages = null; state.memberProgress = null; state.previousWarExpanded = false; state.currentWarFilter = 'all'; state.warQuery = ''; render();
@@ -685,7 +693,7 @@
   function selectionTSV() {
     if (!state.selection?.selected.length) return '';
     const rows = [['Ordem', 'Jogador', 'Tag', 'Cargo', 'Centro da Vila', 'Escudo', 'Fonte do desempenho', 'Ataques', '1º ataque (estrelas)', '2º ataque (estrelas)', 'Estrelas', 'Novas estrelas', 'Ataques com 3 estrelas', 'Convocação']];
-    state.selection.selected.forEach((row, index) => rows.push([index + 1, row.member.name, '#' + row.member.tag, roleNames[row.member.role] || row.member.role, row.member.th, prefNames[row.member.pref], row.usedPersonalHistory ? 'Histórico pessoal' : row.inWar ? 'Última guerra do clã' : '', row.criteriaPerf?.attacks ?? '', row.criteriaPerf?.firstAttackStars ?? '', row.criteriaPerf?.secondAttackStars ?? '', row.criteriaPerf?.stars ?? '', row.inWar ? row.perf.newStars : '', row.criteriaPerf?.triples ?? '', reason(row).label]));
+    state.selection.selected.forEach((row, index) => rows.push([index + 1, row.member.name, '#' + row.member.tag, roleNames[row.member.role] || row.member.role, row.member.th, prefNames[row.member.pref], row.usedManagedHistory ? `Histórico dos clãs: ${row.historyWar.clan.name}` : row.usedPersonalHistory ? 'Histórico pessoal' : row.inWar ? 'Última guerra do clã' : '', row.criteriaPerf?.attacks ?? '', row.criteriaPerf?.firstAttackStars ?? '', row.criteriaPerf?.secondAttackStars ?? '', row.criteriaPerf?.stars ?? '', row.inWar ? row.perf.newStars : '', row.criteriaPerf?.triples ?? '', reason(row).label]));
     return rows.map((row) => row.map(tsvCell).join('\t')).join('\r\n');
   }
   function fallbackCopy(text) {

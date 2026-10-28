@@ -3,6 +3,7 @@ import { CwlError } from './cwl/errors.js';
 import { sourceProxy } from './cwl/source-proxy.js';
 import { bridgeCwl } from './cwl/bridge.js';
 import { clientKey } from './cwl/rate-limit.js';
+import { usesOfficialApi, officialJson } from './official-api.js';
 const PROFILE_API = 'https://clashapi.colinschmale.dev';
 const HISTORY_API = 'https://api.clashk.ing';
 const TTL = 60;
@@ -72,10 +73,11 @@ function safeRoute(pathname) {
   if (pathname.startsWith('/api/cwl/')) return 'cwl_' + (pathname.endsWith('/revisions') ? 'revision' : pathname.endsWith('/reviews') ? 'review' : pathname.endsWith('/sync') ? 'sync' : 'read');
   if (/^\/api\/clans\/[^/]+\/score-history$/.test(pathname)) return 'war_score_history';
   if (/^\/api\/players\/[^/]+\/war-stats$/.test(pathname)) return 'player_war_statistics';
-  const match = pathname.match(/^\/api\/clans\/[^/]+(?:\/(wars|currentwar))?$/);
+  const match = pathname.match(/^\/api\/clans\/[^/]+(?:\/(wars|currentwar|warlog))?$/);
   if (!match) return 'other';
   if (match[1] === 'wars') return 'clan_war_history';
   if (match[1] === 'currentwar') return 'clan_current_war';
+  if (match[1] === 'warlog') return 'clan_war_log';
   return 'clan_details';
 }
 
@@ -191,6 +193,13 @@ function profile(data, expectedTag) {
   };
 }
 
+async function liveProfile(path, ctx, env, transform = value => value) {
+  if (!usesOfficialApi(env)) return upstream(PROFILE_API, path, ctx, transform);
+  const result = await officialJson(path, env);
+  return { ...result, data: transform(result.data) };
+}
+const profileSource = env => usesOfficialApi(env) ? 'api.clashofclans.com' : 'clashapi.colinschmale.dev';
+
 function playerWarStats(data, expectedTag) {
   if (!Array.isArray(data?.items)) throw new APIError(502, 'A fonte não retornou um histórico de guerras válido.');
   const hit = (attack) => {
@@ -222,6 +231,34 @@ async function api(request, ctx, env, cwlHandler = handleCwl) {
   if (url.pathname === '/api/audit') return audit(request, Date.now());
   if (request.method !== 'GET') return json({ error: 'Método não permitido.' }, 405, { Allow: 'GET' });
   if (url.pathname === '/api/health') return json({ ok: true });
+
+  const playerInfo = url.pathname.match(/^\/api\/players\/([^/]+)\/(profile|league-history|battle-log|league-group)$/);
+  if (playerInfo) {
+    const tag = tagOf(decodeURIComponent(playerInfo[1])), kind = playerInfo[2];
+    if (kind === 'league-group') {
+      const period = url.searchParams.get('period') || 'current';
+      if (!['current','previous'].includes(period)) throw new APIError(400, 'Escolha current ou previous.');
+      const profile = await officialJson('/v1/players/' + encodeURIComponent('#' + tag), env);
+      const group = profile.data[period + 'LeagueGroupTag'], season = profile.data[period + 'LeagueSeasonId'];
+      if (!group || !season) throw new APIError(404, 'Período de liga não disponível para este jogador.');
+      const result = await officialJson(`/v1/leaguegroup/${encodeURIComponent(group)}/${season}?playerTag=${encodeURIComponent('#' + tag)}`, env);
+      return json({ leagueSeasonId: season, member: result.data.members?.find(p => p.playerTag === '#' + tag) || null,
+        attackLogs: result.data.attackLogs || [], defenseLogs: result.data.defenseLogs || [], fetchedAt: result.fetchedAt, source: 'api.clashofclans.com' });
+    }
+    const suffix = kind === 'profile' ? '' : kind === 'league-history' ? '/leaguehistory' : '/battlelog';
+    const result = await officialJson('/v1/players/' + encodeURIComponent('#' + tag) + suffix, env);
+    const pick = (obj, keys) => Object.fromEntries(keys.filter(key => Object.hasOwn(obj, key)).map(key => [key, obj[key]]));
+    const data = kind === 'profile' ? pick(result.data, ['tag','name','townHallLevel','leagueTier','currentLeagueGroupTag','currentLeagueSeasonId',
+      'previousLeagueGroupTag','previousLeagueSeasonId','troops','heroes','heroEquipment','spells'])
+      : { items: (result.data.items || []).map(item => pick(item, kind === 'league-history'
+        ? ['leagueSeasonId','leagueTierId','leagueTrophies','placement','attackWins','attackLosses','attackStars','defenseWins','defenseLosses','defenseStars','maxBattles']
+        : ['battleType','attack','opponentPlayerTag','opponentName','opponentTownHallLevel','stars','destructionPercentage','battleTime','battleTimestamp','armyShareCode'])) };
+    return json({ ...data, fetchedAt: result.fetchedAt, source: 'api.clashofclans.com' });
+  }
+  if (url.pathname === '/api/league-tiers') {
+    const result = await officialJson('/v1/leaguetiers', env);
+    return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'api.clashofclans.com' });
+  }
 
   const scoreMatch = url.pathname.match(/^\/api\/clans\/([^/]+)\/score-history$/);
   if (scoreMatch) {
@@ -258,14 +295,14 @@ async function api(request, ctx, env, cwlHandler = handleCwl) {
     const tags = [...new Set(values.map(tagOf))];
     const items = await pool(tags, 3, async (tag) => {
       try {
-        const result = await upstream(PROFILE_API, '/v1/players/' + encodeURIComponent('#' + tag), ctx, (data) => profile(data, tag));
+        const result = await liveProfile('/v1/players/' + encodeURIComponent('#' + tag), ctx, env, (data) => profile(data, tag));
         return { ...result.data, fetchedAt: result.fetchedAt };
       } catch (error) {
         if (!(error instanceof APIError)) throw error;
         return { tag: '#' + tag, error: error.message };
       }
     });
-    return json({ items, source: 'clashapi.colinschmale.dev', cacheSeconds: TTL });
+    return json({ items, source: profileSource(env), cacheSeconds: usesOfficialApi(env) ? 0 : TTL });
   }
 
   const statsMatch = url.pathname.match(/^\/api\/players\/([^/]+)\/war-stats$/);
@@ -275,19 +312,27 @@ async function api(request, ctx, env, cwlHandler = handleCwl) {
     return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashking', cacheSeconds: TTL });
   }
 
-  const match = url.pathname.match(/^\/api\/clans\/([^/]+)(?:\/(wars|currentwar))?$/);
+  const match = url.pathname.match(/^\/api\/clans\/([^/]+)(?:\/(wars|currentwar|warlog))?$/);
   if (!match) return json({ error: 'Rota não encontrada.' }, 404);
   const tag = tagOf(decodeURIComponent(match[1]));
   const encoded = encodeURIComponent('#' + tag);
+  if (match[2] === 'warlog') {
+    const result = await liveProfile(`/v1/clans/${encoded}/warlog?limit=5`, ctx, env, data => {
+      if (!Array.isArray(data?.items)) throw new APIError(502, 'O resumo das últimas guerras está indisponível.');
+      return { items: data.items.slice(0, 5).map(w => ({ endTime: w.endTime, teamSize: w.teamSize,
+        opponent: { tag: w.opponent?.tag, name: w.opponent?.name } })) };
+    });
+    return json({ ...result.data, fetchedAt: result.fetchedAt, source: profileSource(env) });
+  }
   if (match[2] === 'wars') {
     const result = await upstream(HISTORY_API, `/v2/clan/${encoded}/wars?limit=5`, ctx);
     return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashking' });
   }
   if (match[2] === 'currentwar') {
-    const result = await upstream(PROFILE_API, `/v1/clans/${encoded}/currentwar`, ctx);
-    return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashapi.colinschmale.dev' });
+    const result = await liveProfile(`/v1/clans/${encoded}/currentwar`, ctx, env);
+    return json({ ...result.data, fetchedAt: result.fetchedAt, source: profileSource(env) });
   }
-  const result = await upstream(PROFILE_API, `/v1/clans/${encoded}`, ctx, (data) => {
+  const result = await liveProfile(`/v1/clans/${encoded}`, ctx, env, (data) => {
     if (tagOf(data?.tag) !== tag || !Array.isArray(data.memberList)) throw new APIError(502, 'A fonte não retornou a lista de membros do clã.');
     return {
       tag: data.tag, name: data.name, members: data.members, badgeUrls: clanBadges(data.badgeUrls),
@@ -299,7 +344,7 @@ async function api(request, ctx, env, cwlHandler = handleCwl) {
       })),
     };
   });
-  return json({ ...result.data, fetchedAt: result.fetchedAt, source: 'clashapi.colinschmale.dev' });
+  return json({ ...result.data, fetchedAt: result.fetchedAt, source: profileSource(env) });
 }
 
 export function createWorker(cwlHandler = handleCwl) { return {
@@ -338,7 +383,7 @@ export function createWorker(cwlHandler = handleCwl) { return {
     try {
       if(backend&&env.CWL_REQUIRE_BRIDGE==='true'&&!env.CWL_BACKEND_URL)
         throw new CwlError(503,'A CWL ainda não foi configurada para publicação.','cwl_backend_not_configured');
-      const result = url.pathname==='/api/cwl/source' ? await sourceProxy(request)
+      const result = url.pathname==='/api/cwl/source' ? await sourceProxy(request,fetch,env)
         : env.CWL_BACKEND_URL&&url.pathname.startsWith('/api/cwl/') ? await bridgeCwl(request,env)
         : await api(request,ctx,env,cwlHandler);
       return logApiRequest(request,cors(result),startedAt);
