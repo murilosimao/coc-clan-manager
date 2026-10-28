@@ -8,6 +8,7 @@ const dir = new URL('../.wrangler/cwl-ui-review/', import.meta.url).pathname;
 fs.mkdirSync(dir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ locale: 'pt-BR', permissions: ['clipboard-read', 'clipboard-write'], viewport: { width: 1440, height: 1050 } });
+await context.addInitScript(()=>{if(!localStorage.getItem('coc-clan-context-v1'))localStorage.setItem('coc-clan-context-v1',JSON.stringify({version:1,tag:'2G8QCR92V'}));});
 const page = await context.newPage(), errors = [], checks = [];
 page.on('pageerror', error => errors.push(error.message));
 const done = () => page.waitForFunction(() => window.CwlApp?.state.ranking && !window.CwlApp.state.loading);

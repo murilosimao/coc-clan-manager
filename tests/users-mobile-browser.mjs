@@ -7,7 +7,7 @@ const browser=await chromium.launch();
 const clans=['2G8QCR92V','2CQ9CR2YP'];
 const primary='00000000-0000-4000-8000-000000000001',created='00000000-0000-4000-8000-000000000002';
 try{
- const page=await browser.newPage();let role='leader',removed=0,createdCount=0,fail=false;
+ const page=await browser.newPage();await page.addInitScript(()=>localStorage.setItem('coc-clan-context-v1',JSON.stringify({version:1,tag:'2G8QCR92V'})));let role='leader',removed=0,createdCount=0,fail=false;
  const records=new Map();
  await page.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),path=url.pathname;

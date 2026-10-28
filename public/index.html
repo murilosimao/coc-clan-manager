@@ -15,6 +15,7 @@
   <script src="portal/clashking.js" defer></script>
   <script src="portal/clan-api.js" defer></script>
   <script src="portal/war-engine.js" defer></script>
+  <script src="portal/clan-context.js" defer></script>
   <script src="portal/war-stats.js" defer></script>
   <script src="portal/war-scores.js" defer></script>
   <script src="portal/score-ui.js" defer></script>
@@ -24,7 +25,7 @@
   <script src="portal/user-access.js" defer></script>
   <script src="portal/app.js" defer></script>
 </head>
-<body>
+<body data-context-required="true">
 <a class="skip-link" href="#main">Ir para o conteúdo</a>
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/></symbol>
@@ -57,7 +58,7 @@
   </nav>
   <div class="header-actions">
     <button type="button" class="leader-access" id="leader-access" aria-haspopup="dialog" hidden><svg class="icon"><use href="#i-crown"/></svg><span>Liderança</span></button>
-    <button type="button" class="clan-menu" id="open-clan" aria-label="Clã e opções" aria-haspopup="dialog"><svg class="icon"><use href="#i-shield"/></svg><span>Meu clã</span><svg class="icon small"><use href="#i-chevron"/></svg></button>
+    <button type="button" class="clan-menu" id="open-clan" aria-label="Escolher clã" aria-haspopup="dialog"><img id="context-badge" src="portal/images/clans/2G8QCR92V.png" alt="" width="30" height="30"><span class="context-button-copy"><b id="context-name">Escolher clã</b><small>Trocar clã</small></span><svg class="icon small"><use href="#i-chevron"/></svg></button>
   </div>
 </header>
 <main id="main" tabindex="-1">
@@ -76,10 +77,11 @@
   <button type="button" id="mobile-copy" class="nav-copy" disabled><svg class="icon"><use href="#i-copy"/></svg><span>Copiar TSV</span></button>
 </nav>
 <dialog id="clan-dialog" class="clan-dialog" aria-labelledby="dialog-title">
-  <div class="dialog-heading"><div><div class="eyebrow">QUARTEL DO CLÃ</div><h2 id="dialog-title">Seu clã e seus dados</h2></div><button type="button" class="icon-button" id="close-clan" aria-label="Fechar opções"><svg class="icon"><use href="#i-x"/></svg></button></div>
-  <form id="clan-form"><label class="field" for="clan-input"><span>Tag do clã</span><input id="clan-input" name="tag" type="text" autocomplete="off" spellcheck="false" autocapitalize="characters" maxlength="16" required placeholder="#2G8QCR92V"></label><button type="submit" class="button primary">Consultar clã<svg class="icon"><use href="#i-arrow"/></svg></button></form>
-  <div id="source-info" class="source-info"></div>
-  <details class="privacy-note"><summary>Privacidade dos registros de uso</summary><p>Ações básicas são registradas com um identificador temporário desta aba. Os logs personalizados não incluem IP completo, nomes ou tags de jogadores, conteúdo de HAR ou credenciais.</p></details>
+  <div class="dialog-heading"><div><h2 id="dialog-title" tabindex="-1">Escolha o clã</h2><p class="context-intro">Você pode trocar de clã depois, pelo botão no topo.</p></div><button type="button" class="icon-button" id="close-clan" aria-label="Fechar escolha de clã"><svg class="icon"><use href="#i-x"/></svg></button></div>
+  <div id="clan-options" class="clan-options" aria-label="Clãs disponíveis"></div>
+  <div id="clan-switch-warning" class="clan-switch-warning" hidden><p>Trocar de clã descarta a edição não salva da CWL. Deseja continuar?</p><div><button type="button" class="button primary" id="confirm-clan-switch">Descartar e trocar</button><button type="button" class="button secondary" id="cancel-clan-switch">Continuar editando</button></div></div>
+  <p class="context-remember" id="context-remember">A escolha fica salva neste navegador.</p>
+  <details class="context-source"><summary>Sobre os dados e a privacidade</summary><div id="source-info" class="source-info"></div><p>Ações básicas são registradas com um identificador temporário desta aba. Os logs personalizados não incluem IP completo, nomes ou tags de jogadores, conteúdo de HAR ou credenciais.</p></details>
 </dialog>
 <dialog id="leader-dialog" class="clan-dialog leader-dialog" aria-labelledby="leader-title">
   <div class="dialog-heading"><div><div class="eyebrow">LÍDER E COLÍDERES</div><h2 id="leader-title">Acesso da liderança</h2></div><button type="button" class="icon-button" id="close-leader" aria-label="Fechar acesso da liderança"><svg class="icon"><use href="#i-x"/></svg></button></div>
