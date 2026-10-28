@@ -10,7 +10,7 @@ const cookieResponse=(data,cookies=[],status=200)=>{
 function config(env){
   let url,editors;try{url=new URL(env.SUPABASE_URL);editors=JSON.parse(env.CWL_EDITORS||'{}');}catch{}
   requireCondition(url?.protocol==='https:'&&url.hostname.endsWith('.supabase.co')&&typeof env.SUPABASE_ANON_KEY==='string'
-    &&Object.entries(editors||{}).every(([id,e])=>UUID.test(id)&&['leader','coLeader'].includes(e.role)&&e.clanTag),503,'Login da liderança não configurado.','auth_not_configured');
+    &&Object.entries(editors||{}).every(([id,e])=>UUID.test(id)&&['leader','coLeader'].includes(e.role)&&e.clanTag&&(!e.clanTags||Array.isArray(e.clanTags)&&e.clanTags.length<=10&&e.clanTags.every(t=>typeof t==='string'&&/^[0289PYLQGRJCUV]{3,15}$/.test(t)))),503,'Login da liderança não configurado.','auth_not_configured');
   return {url,editors};
 }
 function origin(request,env){return env.CWL_PUBLIC_ORIGIN||new URL(request.url).origin;}
@@ -42,7 +42,7 @@ export function createCwlAuth(fetcher=fetch){
   function editor(env,user){
     const entry=config(env).editors[user?.id];
     requireCondition(entry&&['leader','coLeader'].includes(entry.role),403,'Conta sem permissão para alterar a CWL.','editor_forbidden');
-    return {id:user.id,role:entry.role,clanTag:clanTag(entry.clanTag)};
+    return {id:user.id,role:entry.role,clanTag:clanTag(entry.clanTag),...(entry.clanTags?{clanTags:[...new Set([clanTag(entry.clanTag),...entry.clanTags.map(clanTag)])]}:{})};
   }
   async function current(request,env){
     const [token]=await readCookies(request,env);requireCondition(token,401,'Entre como líder ou colíder.','session_required');
@@ -50,13 +50,13 @@ export function createCwlAuth(fetcher=fetch){
   }
   async function authorize(request,env,tag){
     if(request.method==='POST')requireSameOrigin(request,env);
-    const actor=await current(request,env);requireCondition(actor.clanTag===tag,403,'Sua conta não pode alterar este clã.','clan_forbidden');return actor;
+    const actor=await current(request,env);requireCondition((actor.clanTags||[actor.clanTag]).includes(tag),403,'Sua conta não pode alterar este clã.','clan_forbidden');return {...actor,clanTag:tag};
   }
   async function handle(request,env){
     const path=new URL(request.url).pathname;
     if(!path.startsWith('/api/cwl/auth/'))return null;
     const action=path.split('/').at(-1);
-    requireCondition(['login','session','logout'].includes(action),404,'Rota de login não encontrada.');
+    requireCondition(['login','session','logout','password'].includes(action),404,'Rota de login não encontrada.');
     requireCondition(request.method===(action==='session'?'GET':'POST'),405,'Método não permitido.');
     if(action!=='session')requireSameOrigin(request,env);
     if(action==='login'){
@@ -70,6 +70,18 @@ export function createCwlAuth(fetcher=fetch){
       return cookieResponse({authenticated:true,editor:who},await cookies(request,env,session));
     }
     const [token,refresh]=await readCookies(request,env);
+    if(action==='password'){
+      requireCondition(token,401,'Entre como líder ou colíder.','session_required');
+      requireCondition(request.headers.get('Content-Type')?.startsWith('application/json'),415,'Envie application/json.');
+      let data;try{data=JSON.parse(new TextDecoder().decode(await readBytes(request.body,4096)));}catch(error){if(error instanceof CwlError)throw error;throw new CwlError(400,'Dados inválidos.');}
+      requireCondition(data&&typeof data.currentPassword==='string'&&data.currentPassword.length>0&&data.currentPassword.length<=1024&&typeof data.newPassword==='string'&&data.newPassword.length>=8&&data.newPassword.length<=1024,400,'Informe a senha atual e uma nova senha com pelo menos 8 caracteres.');
+      const user=await call(env,'user',{token,method:'GET'});editor(env,user);
+      requireCondition(typeof user.email==='string',400,'A conta não possui email para confirmar a senha.');
+      const fresh=await call(env,'token?grant_type=password',{body:{email:user.email,password:data.currentPassword}});
+      requireCondition(fresh.user?.id===user.id,401,'Não foi possível confirmar a conta.');
+      await call(env,'user',{token:fresh.access_token,method:'PUT',body:{password:data.newPassword,current_password:data.currentPassword}});
+      return cookieResponse({ok:true},await cookies(request,env,fresh));
+    }
     if(action==='logout'){
       if(token)try{await call(env,'logout?scope=local',{token});}catch{}
       return cookieResponse({authenticated:false},await cookies(request,env,null));

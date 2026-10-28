@@ -32,6 +32,32 @@ async function sessionCookie(token,refresh=''){
   return '__Host-cwl-access='+values[0]+'; __Host-cwl-refresh='+values[1];
 }
 
+test('password change requires a verified session, same origin and current password',async()=>{
+  let updates=0;
+  const fetcher=async(url,options)=>{
+    if(url.includes('grant_type=password')){
+      const body=JSON.parse(options.body);
+      if(body.password!=='old-password')return Response.json({error:'invalid'},{status:401});
+      return Response.json({access_token:'fresh-token',refresh_token:'fresh-refresh',expires_in:3600,user:{id:leader}});
+    }
+    if(options.method==='PUT'){
+      assert.equal(options.headers.Authorization,'Bearer fresh-token');
+      assert.equal(JSON.parse(options.body).current_password,'old-password');
+      updates++;return Response.json({id:leader});
+    }
+    return Response.json({id:leader,email:'leader@test.invalid'});
+  };
+  const auth=createCwlAuth(fetcher),cookie=await sessionCookie('leader-token');
+  const payload={currentPassword:'old-password',newPassword:'new-password'};
+  await assert.rejects(auth.handle(request('password',{method:'POST',body:payload,origin:'https://evil.invalid',cookie}),env),e=>e.status===403);
+  await assert.rejects(auth.handle(request('password',{method:'POST',body:payload}),env),e=>e.status===401);
+  await assert.rejects(auth.handle(request('password',{method:'POST',body:{...payload,currentPassword:'wrong'},cookie}),env),e=>e.status===401);
+  assert.equal(updates,0);
+  const response=await auth.handle(request('password',{method:'POST',body:payload,cookie}),env);
+  assert.deepEqual(await response.json(),{ok:true});assert.equal(updates,1);
+  assert(response.headers.getSetCookie().every(c=>!c.includes('fresh-token')&&!c.includes('new-password')));
+});
+
 test('login grants only allowlisted leader/co-leader and tokens remain in secure HttpOnly cookies',async()=>{
   const auth=createCwlAuth(fakeAuth);
   for(const [email,role]of [['leader@test.invalid','leader'],['co@test.invalid','coLeader']]){
@@ -48,6 +74,15 @@ test('verified session role cannot be forged through user metadata or used for a
   await assert.rejects(auth.authorize(await r('other-token'),env,clan),e=>e.status===403);
   await assert.rejects(auth.authorize(await r('leader-token'),env,'2998YJPU2'),e=>e.code==='clan_forbidden');
   await assert.rejects(auth.authorize(await r('expired-token'),env,clan),e=>e.status===401);
+});
+test('leader can access the secondary clan only when explicitly authorized; co-leader stays scoped',async()=>{
+  const auth=createCwlAuth(fakeAuth),editors=JSON.parse(env.CWL_EDITORS);
+  editors[leader].clanTags=[clan,'2CQ9CR2YP'];
+  const configured={...env,CWL_EDITORS:JSON.stringify(editors)};
+  const make=async token=>request('session',{cookie:await sessionCookie(token)});
+  assert.equal((await auth.authorize(await make('leader-token'),configured,'2CQ9CR2YP')).clanTag,'2CQ9CR2YP');
+  await assert.rejects(auth.authorize(await make('co-token'),configured,'2CQ9CR2YP'),e=>e.status===403);
+  await assert.rejects(auth.authorize(await make('leader-token'),configured,'2998YJPU2'),e=>e.status===403);
 });
 test('login and mutation require the exact app origin; public Pages cannot send authenticated writes',async()=>{
   const auth=createCwlAuth(fakeAuth);

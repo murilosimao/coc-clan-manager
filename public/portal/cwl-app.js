@@ -9,7 +9,7 @@
   let onUpdate = () => {}, onExport = () => {}, onLogin = () => {};
   const openDetails = new Set();
   const container = () => document.getElementById('cwl-view');
-  const canEdit=()=>state.demo||state.editor?.clanTag===state.clanTag&&['leader','coLeader'].includes(state.editor.role);
+  const canEdit=()=>state.demo||(state.editor?.clanTags||[state.editor?.clanTag]).includes(state.clanTag)&&['leader','coLeader'].includes(state.editor.role);
   function centerSelectedRound(root) {
     const rail = root?.querySelector('.cwl-rounds'), selected = rail?.querySelector('[aria-pressed="true"]');
     if (rail && selected && rail.clientWidth) {
