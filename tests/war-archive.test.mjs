@@ -170,3 +170,16 @@ test('merge prefers our final capture, never lets a partial one replace a finish
   assert.deepEqual(historyFreshness([finalCapture], [ck[0]], [{ endTime: END }]),
     { archiveLatestEnd: END, clashkingLatestEnd: '20261020T175138.000Z', officialLatestEnd: END });
 });
+
+test('a Clash Spot export becomes an official war with exact times and recomputed scores', async () => {
+  const { clashspotToOfficial } = await import('../scripts/import-war-archive.mjs');
+  const exported = { teamSize: 2, attacksPerMember: 2, matchOn: '2026-10-26T16:26:00.000Z', startedOn: '2026-10-27T15:26:00.000Z', endedOn: '2026-10-28T15:26:00.000Z',
+    clan: { tag: ours, name: 'Nós', members: [['QPQP', 'A', 17, 1], ['QPQY', 'B', 16, 2]] },
+    opponent: { tag: rival, name: 'Eles', members: [['RPQP', 'X', 17, 1], ['RPQY', 'Y', 16, 2]] },
+    attacks: [[2, 'QPQP', 'RPQY', 3, 100], [1, 'QPQP', 'RPQP', 2, 80], [3, 'RPQP', 'QPQY', 1, 55]] };
+  const war = reduceWar(clashspotToOfficial(exported, at('20261028T152623.000Z')), ours);
+  assert.deepEqual([war.preparationStartTime, war.startTime, war.endTime], ['20261026T162623.000Z', '20261027T152623.000Z', '20261028T152623.000Z']);
+  assert.deepEqual([war.clan.attacks, war.clan.stars, war.clan.destructionPercentage, war.opponent.stars, war.opponent.destructionPercentage], [2, 5, 90, 1, 27.5]);
+  assert.deepEqual(war.clan.members[0].attacks.map(a => a.order), [1, 2]);
+  assert.throws(() => clashspotToOfficial({ ...exported, attacks: [[1, 'QPQP', 'QPQY', 3, 100]] }), /fora dos elencos/);
+});
