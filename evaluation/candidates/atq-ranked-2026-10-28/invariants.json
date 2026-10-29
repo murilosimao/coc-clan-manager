@@ -1,0 +1,41 @@
+{
+  "checkedWars": 47,
+  "checkedPlayerDEFs": 26857,
+  "allDEFsExactlyEqual": true,
+  "scalesThresholdsCoefficientsUnchanged": true,
+  "zeroSignalExactlyPreserved": true,
+  "runtimeSourceUnchanged": true,
+  "synthetic": [
+    {
+      "historicalAttacks": 0,
+      "prior": 0.5,
+      "effect": 0.5,
+      "ATQ": 71.42857142857143
+    },
+    {
+      "historicalAttacks": 2,
+      "prior": 0.5,
+      "effect": 0.28017659012574825,
+      "ATQ": 62.00756814824636
+    },
+    {
+      "historicalAttacks": 5,
+      "prior": 0.5,
+      "effect": 0.16866586303035547,
+      "ATQ": 57.22853698701523
+    },
+    {
+      "historicalAttacks": 20,
+      "prior": 0.5,
+      "effect": 0.05640967467133606,
+      "ATQ": 52.4175574859144
+    },
+    {
+      "historicalAttacks": 50,
+      "prior": 0.5,
+      "effect": 0.024200361376607304,
+      "ATQ": 51.03715834471174
+    }
+  ],
+  "syntheticInterpretation": "Directed formula demonstration, not a prediction of any real player."
+}

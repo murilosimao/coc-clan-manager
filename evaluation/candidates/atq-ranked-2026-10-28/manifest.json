@@ -1,0 +1,110 @@
+{
+  "baseCommit": "9088a50ddd4c22fb02e79230a0da8e90f1c69ead",
+  "node": "v24.14.0",
+  "baselineVersion": "war-ordinal-v2",
+  "baselineSourceHash": "3ad0bae046cfe1f38004dd6bc4e06d0579ac3452f28e0e23557e095d36837057",
+  "experimentFiles": [
+    {
+      "file": "experiments/ranked-atq/README.md",
+      "sha256": "d0c3ccd456261750e4607a9bee660d0094bfb22a42ee28eaad1342fd27fd05ee"
+    },
+    {
+      "file": "experiments/ranked-atq/audit.mjs",
+      "sha256": "b6efd62ad3fded7db91667be9c432f4d5eb2b3a13413ce21c299f38eacecf87a"
+    },
+    {
+      "file": "experiments/ranked-atq/collect.mjs",
+      "sha256": "025e8ada5f527b44230eca573d562fda299b0c35b872bd2bede8aa7589594532"
+    },
+    {
+      "file": "experiments/ranked-atq/data.mjs",
+      "sha256": "1d5916c2a3d7a443ce981dce46122941f92cef013859cf83b7f09a38cd56c221"
+    },
+    {
+      "file": "experiments/ranked-atq/export-local.mjs",
+      "sha256": "cbb50799dff90fa023ce282b84a222c2757d4ae8ebdf36cf8c2791a1ba3a1c6d"
+    },
+    {
+      "file": "experiments/ranked-atq/model.mjs",
+      "sha256": "5c2dbd204ff97ae99c7b0c3de17bee79b37fc42513ad4845ca39ddd10456d849"
+    },
+    {
+      "file": "experiments/ranked-atq/model.test.mjs",
+      "sha256": "5daaa15b0df6118724dbfcd9e5cafe566e0d2dd38a4e5c2a9a83aec1ddd10c1b"
+    },
+    {
+      "file": "experiments/ranked-atq/prepare.mjs",
+      "sha256": "9b1f88945949eb2ab22621f1769835afb3ac70cc19bbe500f40da7169506c662"
+    },
+    {
+      "file": "experiments/ranked-atq/report.mjs",
+      "sha256": "d26f2cad5344d9a2fb997e2bb49dabfd7b4517b5fd5afaef0a7f741ca79529db"
+    },
+    {
+      "file": "experiments/ranked-atq/simulate.mjs",
+      "sha256": "22f7454435bde7cb6bc190b506b26b0fb80cb2e84c29f31f3a931d064f35998c"
+    },
+    {
+      "file": "experiments/ranked-atq/source-audit.mjs",
+      "sha256": "52d02e11c2fe9e664ab1ff73406c55b51fe77f3a016532dc4cb346ef1de8a498"
+    }
+  ],
+  "localInputs": {
+    "files": 1253,
+    "manifestSHA256": "189db893e59a67d677d48348109d5ec0894f5368b366b39e590b7cbe515dd583",
+    "clashspotSHA256": "37705b5161e0269493fbb7796f8c1462ed2ca3a97df8646b7902c055861c6276"
+  },
+  "scope": "offline ATQ experiment; no deployment or production writes",
+  "checks": {
+    "unitTests": 10,
+    "sourceAudit": {
+      "matchedWeeklyRows": 456,
+      "comparedGroups": 23,
+      "mismatches": [],
+      "invalidGroups": [],
+      "seasonLabelMeans": "end date; official season ID means start date"
+    },
+    "invariants": {
+      "checkedWars": 47,
+      "checkedPlayerDEFs": 26857,
+      "allDEFsExactlyEqual": true,
+      "scalesThresholdsCoefficientsUnchanged": true,
+      "zeroSignalExactlyPreserved": true,
+      "runtimeSourceUnchanged": true,
+      "synthetic": [
+        {
+          "historicalAttacks": 0,
+          "prior": 0.5,
+          "effect": 0.5,
+          "ATQ": 71.42857142857143
+        },
+        {
+          "historicalAttacks": 2,
+          "prior": 0.5,
+          "effect": 0.28017659012574825,
+          "ATQ": 62.00756814824636
+        },
+        {
+          "historicalAttacks": 5,
+          "prior": 0.5,
+          "effect": 0.16866586303035547,
+          "ATQ": 57.22853698701523
+        },
+        {
+          "historicalAttacks": 20,
+          "prior": 0.5,
+          "effect": 0.05640967467133606,
+          "ATQ": 52.4175574859144
+        },
+        {
+          "historicalAttacks": 50,
+          "prior": 0.5,
+          "effect": 0.024200361376607304,
+          "ATQ": 51.03715834471174
+        }
+      ],
+      "syntheticInterpretation": "Directed formula demonstration, not a prediction of any real player."
+    }
+  },
+  "aggregateResultsSHA256": "094f77f11b819269269a896f965a88386b712256613bbd946d48ab2e8a246727"
+}

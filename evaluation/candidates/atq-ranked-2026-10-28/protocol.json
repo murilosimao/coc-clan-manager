@@ -1,0 +1,529 @@
+{
+  "version": 1,
+  "baseline": "war-ordinal-v2",
+  "scope": "ATQ only; DEF, coefficients, thresholds and score scales frozen",
+  "integration": "paired conditional difference: old ATQ effect + optimum(mu) - optimum(0)",
+  "selection": "war start before 2026-10-12T05:00Z; select by mean per-war RPS, lower is better; ties prefer zero and smaller coefficients",
+  "validation": "2026-10-12T05:00Z <= war start < 2026-10-19T05:00Z; never selects parameters",
+  "test": "2026-10-19T05:00Z <= war start; never selects parameters",
+  "ranked": "latest ended week only; never current-week attacks; leave-one-player-out same tier/week/attackerCV/defenderCV; min20 other attacks from2 other players",
+  "cohort": "current family fixed, exploratory; historical observed clan participants and bounded TH are sensitivity analyses",
+  "qualityContext": "tier and week are a context proxy; numerical battle modifier is not claimed to be observed on each ranked hit",
+  "limitations": [
+    "Retrospective current-family reference and current/row-displayed CV can introduce bias.",
+    "Historical ClashSpot participants are not a complete historical member list.",
+    "Only observed attacks validate predictive scores, not counterfactual assignments.",
+    "Legend I is excluded pending weekly normalization."
+  ],
+  "grid": [
+    {
+      "id": "v2",
+      "kind": "baseline",
+      "bS": 0,
+      "bQ": 0,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0-k3-p0",
+      "kind": "league",
+      "bS": 0.15,
+      "bQ": 0,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0.15-q0.5-k3-p0",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 0.5,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0.15-q1-k3-p0",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 1,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q0-k3-p0",
+      "kind": "league",
+      "bS": 0.3,
+      "bQ": 0,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q0.5-k3-p0",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 0.5,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q1-k3-p0",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 1,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q0-k3-p0",
+      "kind": "league",
+      "bS": 0.6,
+      "bQ": 0,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q0.5-k3-p0",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 0.5,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q1-k3-p0",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 1,
+      "k": 3,
+      "promotion": 0
+    },
+    {
+      "id": "s0-q0.5-k3-p0.5",
+      "kind": "quality",
+      "bS": 0,
+      "bQ": 0.5,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0-q1-k3-p0.5",
+      "kind": "quality",
+      "bS": 0,
+      "bQ": 1,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0-k3-p0.5",
+      "kind": "league",
+      "bS": 0.15,
+      "bQ": 0,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0.5-k3-p0.5",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 0.5,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q1-k3-p0.5",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 1,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q0-k3-p0.5",
+      "kind": "league",
+      "bS": 0.3,
+      "bQ": 0,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q0.5-k3-p0.5",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 0.5,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q1-k3-p0.5",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 1,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q0-k3-p0.5",
+      "kind": "league",
+      "bS": 0.6,
+      "bQ": 0,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q0.5-k3-p0.5",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 0.5,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q1-k3-p0.5",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 1,
+      "k": 3,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0-k6-p0",
+      "kind": "league",
+      "bS": 0.15,
+      "bQ": 0,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0.15-q0.5-k6-p0",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 0.5,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0.15-q1-k6-p0",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 1,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q0-k6-p0",
+      "kind": "league",
+      "bS": 0.3,
+      "bQ": 0,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q0.5-k6-p0",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 0.5,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q1-k6-p0",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 1,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q0-k6-p0",
+      "kind": "league",
+      "bS": 0.6,
+      "bQ": 0,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q0.5-k6-p0",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 0.5,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q1-k6-p0",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 1,
+      "k": 6,
+      "promotion": 0
+    },
+    {
+      "id": "s0-q0.5-k6-p0.5",
+      "kind": "quality",
+      "bS": 0,
+      "bQ": 0.5,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0-q1-k6-p0.5",
+      "kind": "quality",
+      "bS": 0,
+      "bQ": 1,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0-k6-p0.5",
+      "kind": "league",
+      "bS": 0.15,
+      "bQ": 0,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0.5-k6-p0.5",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 0.5,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q1-k6-p0.5",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 1,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q0-k6-p0.5",
+      "kind": "league",
+      "bS": 0.3,
+      "bQ": 0,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q0.5-k6-p0.5",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 0.5,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q1-k6-p0.5",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 1,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q0-k6-p0.5",
+      "kind": "league",
+      "bS": 0.6,
+      "bQ": 0,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q0.5-k6-p0.5",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 0.5,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q1-k6-p0.5",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 1,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0-k12-p0",
+      "kind": "league",
+      "bS": 0.15,
+      "bQ": 0,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0.15-q0.5-k12-p0",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 0.5,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0.15-q1-k12-p0",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 1,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q0-k12-p0",
+      "kind": "league",
+      "bS": 0.3,
+      "bQ": 0,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q0.5-k12-p0",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 0.5,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0.3-q1-k12-p0",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 1,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q0-k12-p0",
+      "kind": "league",
+      "bS": 0.6,
+      "bQ": 0,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q0.5-k12-p0",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 0.5,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0.6-q1-k12-p0",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 1,
+      "k": 12,
+      "promotion": 0
+    },
+    {
+      "id": "s0-q0.5-k12-p0.5",
+      "kind": "quality",
+      "bS": 0,
+      "bQ": 0.5,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0-q1-k12-p0.5",
+      "kind": "quality",
+      "bS": 0,
+      "bQ": 1,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0-k12-p0.5",
+      "kind": "league",
+      "bS": 0.15,
+      "bQ": 0,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q0.5-k12-p0.5",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 0.5,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.15-q1-k12-p0.5",
+      "kind": "both",
+      "bS": 0.15,
+      "bQ": 1,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q0-k12-p0.5",
+      "kind": "league",
+      "bS": 0.3,
+      "bQ": 0,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q0.5-k12-p0.5",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 0.5,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.3-q1-k12-p0.5",
+      "kind": "both",
+      "bS": 0.3,
+      "bQ": 1,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q0-k12-p0.5",
+      "kind": "league",
+      "bS": 0.6,
+      "bQ": 0,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q0.5-k12-p0.5",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 0.5,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "s0.6-q1-k12-p0.5",
+      "kind": "both",
+      "bS": 0.6,
+      "bQ": 1,
+      "k": 12,
+      "promotion": 0.5
+    },
+    {
+      "id": "constant-0.15",
+      "kind": "constant-control",
+      "bC": 0.15,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "constant-0.3",
+      "kind": "constant-control",
+      "bC": 0.3,
+      "k": 6,
+      "promotion": 0.5
+    },
+    {
+      "id": "constant-0.6",
+      "kind": "constant-control",
+      "bC": 0.6,
+      "k": 6,
+      "promotion": 0.5
+    }
+  ]
+}
