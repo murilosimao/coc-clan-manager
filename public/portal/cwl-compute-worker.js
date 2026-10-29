@@ -1,6 +1,7 @@
 import { ClashCwlProvider } from './cwl-provider.js';
 import { planWar } from './cwl-planner.js';
 import { WarScores } from './cwl-scoring.js';
+import './ranked-api.js';
 
 self.onmessage = async ({ data }) => {
   const { clanTag, start, apiOrigin } = data;
@@ -14,7 +15,12 @@ self.onmessage = async ({ data }) => {
   try {
     progress('war'); const raw = data.snapshot?.raw || await provider.war(clanTag,start);
     progress('history'); const training = data.snapshot?.training || await provider.training(raw);
-    progress('compute'); const before=performance.now(), result=planWar({raw,clanTag,history:training.history});
+    if(!data.snapshot){
+      progress('ranked');
+      try{training.ranked=await globalThis.RankedAPI.load({apiOrigin,players:[...raw.clan.members,...raw.opponent.members],onProgress:p=>self.postMessage({type:'progress',...p})});}
+      catch{training.warnings.push('ranked_unavailable:war_atq_preserved');}
+    }
+    progress('compute'); const before=performance.now(), result=planWar({raw,clanTag,history:training.history,ranked:training.ranked});
     const payload={raw,training,model:result.model,config:result.config,plannerVersion:result.version,computeMs:performance.now()-before,computedAt:new Date().toISOString()};
     progress('archive');
     const archive=await new Response(new Blob([JSON.stringify(payload)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();

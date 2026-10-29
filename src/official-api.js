@@ -1,7 +1,9 @@
 // Official Clash API, called only by the Worker. Production keys are bound to
 // the RoyaleAPI proxy IP because Worker egress addresses change.
 const TAG = '#[0289PYLQGRJCUV]{3,15}';
-const ROUTE = new RegExp(`^/v1/clans/${TAG}/(currentwar|warlog)$`);
+const CLAN = new RegExp(`^/v1/clans/${TAG}(?:/(currentwar|warlog))?$`);
+const PLAYER = new RegExp(`^/v1/players/${TAG}(?:/(leaguehistory|battlelog))?$`);
+const GROUP = new RegExp(`^/v1/leaguegroup/${TAG}/[0-9]{10}$`);
 const REASONS = new Set(['accessDenied', 'accessDenied.invalidIp', 'notFound', 'requestThrottled', 'inMaintenance']);
 
 export class OfficialError extends Error {
@@ -19,8 +21,11 @@ export async function officialJson(path, env, fetcher = fetch) {
   const source = officialSource(env);
   if (!source) throw new OfficialError(503, 'not_configured');
   const url = new URL(path, source.origin);
-  if (url.origin !== source.origin || url.hash || !ROUTE.test(decodeURIComponent(url.pathname))
-    || [...url.searchParams].some(([name, value]) => name !== 'limit' || !/^(1|5|10)$/.test(value))) throw new OfficialError(400, 'route_not_allowed');
+  const pathname = decodeURIComponent(url.pathname), group = GROUP.test(pathname), clan = CLAN.test(pathname), player = PLAYER.test(pathname);
+  const entries = [...url.searchParams];
+  if (url.origin !== source.origin || url.username || url.password || url.hash || (!clan && !player && !group)
+    || (group ? entries.length !== 1 || entries[0][0] !== 'playerTag' || !new RegExp(`^${TAG}$`).test(entries[0][1])
+      : entries.length > 1 || entries.some(([name, value]) => !pathname.endsWith('/warlog') || name !== 'limit' || !/^(1|5|10)$/.test(value)))) throw new OfficialError(400, 'route_not_allowed');
   let response;
   try {
     response = await fetcher(url.href, { method: 'GET', redirect: 'manual',

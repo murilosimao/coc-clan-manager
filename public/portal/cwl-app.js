@@ -143,7 +143,7 @@
       const result=await window.CwlCompute.calculate({clanTag:clan,start,apiOrigin:window.ClanAPI.cwlApiOrigin},p=>{
         if(token!==generation)return;
         if(p.stage==='history'&&performance.now()-last<80)return;last=performance.now();
-        state.loading=p.stage==='compute'?'Calculando scores e distribuindo alvos neste aparelho…':p.stage==='archive'?'Preparando o registro do cálculo…':`Consultando fontes: ${p.completed} de ${p.requests} respostas recebidas…`;render();
+        state.loading=p.stage==='compute'?'Calculando scores e distribuindo alvos neste aparelho…':p.stage==='archive'?'Preparando o registro do cálculo…':p.stage==='ranked'?`Consultando ranqueada: ${p.completed||0} de ${p.requests||0} respostas recebidas…`:`Consultando fontes: ${p.completed} de ${p.requests} respostas recebidas…`;render();
       });
       if(token!==generation)return;
       state.loading='Salvando a proposta para revisão da liderança…';render();
