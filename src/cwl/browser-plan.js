@@ -1,4 +1,5 @@
 import { WarScores as S } from './scoring.js';
+import { RankedScores as R } from '../../public/portal/cwl-scoring.js';
 import { validateWar,planFromModel,PLANNER_VERSION,DEFAULT_CONFIG } from './planner.js';
 import { requireCondition,timestamp } from './errors.js';
 const close=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8;
@@ -6,7 +7,14 @@ const sameData=(a,b)=>typeof a==='number'?close(a,b):a&&typeof a==='object'?b&&O
 
 export function validateBrowserPlan(payload,tag,start,now){
   const {raw,training,model,config}=payload||{},war=validateWar(raw,tag);
-  requireCondition(raw.startTime===start&&payload.plannerVersion===PLANNER_VERSION&&model?.version===S.VERSION,409,'A versão do cálculo mudou. Prepare o plano novamente.','compute_version_changed');
+  const ranked=model?.version===R.VERSION;
+  requireCondition(raw.startTime===start&&payload.plannerVersion===PLANNER_VERSION&&(ranked||model?.version===S.VERSION),409,'A versão do cálculo mudou. Prepare o plano novamente.','compute_version_changed');
+  if(ranked){
+    requireCondition(training?.ranked&&model.baselineVersion===S.VERSION&&sameData(R.CONFIG,model.rankedConfig),422,'Evidência de ranqueada ausente ou parâmetros inválidos.');
+    const tags=new Set(training.ranked.packets?.filter(p=>p.kind==='players').flatMap(p=>p.items).map(p=>p.tag));
+    requireCondition([...war.roster,...war.opponentRoster].every(p=>tags.has(p.tag.replace(/^#/,''))),422,'Perfis ranqueados incompletos para os participantes.');
+  }
+  const base=ranked?R.baseline(model):model;
   requireCondition(config?.goalSupport===DEFAULT_CONFIG.goalSupport&&Object.entries(S.CONFIG).every(([key,value])=>model.config?.[key]===value),422,'Parâmetros de cálculo não suportados.');
   const created=Date.parse(payload.computedAt),cutoff=model.context?.cutoff;
   requireCondition(Number.isFinite(payload.computeMs)&&payload.computeMs>=0&&payload.computeMs<=300000,422,'Tempo de cálculo inválido.');
@@ -28,9 +36,15 @@ export function validateBrowserPlan(payload,tag,start,now){
   for(const e of collected.events)for(const [p,role]of [[e.attacker,'attack'],[e.defender,'defense']]){const c=entry(p);c[role+'Count']++;c[role+'Weight']+=e.weight;c[role+'Weight2']+=e.weight**2;}
   requireCondition(new Set(model.players.map(p=>p.key)).size===counts.size&&model.players.length===counts.size,422,'Identidades do modelo inválidas.');
   for(const role of ['attack','defense']){
-    const eligible=model.players.filter(p=>counts.get(p.key)?.[role+'Count']>=5);
+    const eligible=base.players.filter(p=>counts.get(p.key)?.[role+'Count']>=5);
     const scale=Math.max(S.CONFIG.minimumScale,Math.sqrt(eligible.reduce((s,p)=>s+p[role+'Effect']**2,0)/Math.max(1,eligible.length)));
     requireCondition(close(scale,model.scales?.[role]),422,'Escala do score inválida.');
+  }
+  if(ranked){
+    const expected=R.apply(base,training.ranked,training.history);
+    requireCondition(expected.version===R.VERSION&&sameData(expected.rankedContext,model.rankedContext)
+      &&expected.players.every((p,i)=>close(p.attackEffect,model.players[i].attackEffect)&&close(p.attackScore,model.players[i].attackScore)
+        &&sameData(p.rankedEvidence,model.players[i].rankedEvidence)),422,'O bônus de ranqueada não corresponde aos dados oficiais e à fórmula.');
   }
   for(const p of model.players){
     const c=counts.get(p.key);requireCondition(c&&p.key===S.playerKey(p)&&Object.entries(c).every(([k,v])=>close(p[k],v)),422,'Evidência individual inconsistente.');

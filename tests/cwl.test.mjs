@@ -11,6 +11,8 @@ import { createWorker } from '../src/worker.js';
 import { ClashCwlProvider } from '../src/cwl/provider.js';
 import { RANKING_POLICY } from '../src/cwl/ranking.js';
 import { fixture, hit, historyFor, FixtureProvider, CLAN } from './cwl-fixtures.mjs';
+import { rankedFixture } from './ranked-fixtures.mjs';
+import { signRanked } from '../src/ranked-proof.js';
 
 const url = new URL(process.env.CWL_TEST_DATABASE_URL || process.env.DATABASE_URL);
 if (!process.env.CWL_TEST_DATABASE_URL) url.pathname = '/coc_cwl_test';
@@ -83,6 +85,26 @@ test('tampered formula, changed war and stale browser calculations cannot create
   await assert.rejects(service.initializeComputed(CLAN,start,stale,bytes,'leader:test'),/Data ou modificador/);
   hit(provider.raw);await assert.rejects(service.initializeComputed(CLAN,start,payload,bytes,'leader:test'),e=>e.code==='war_changed_recalculate');
   const [count]=await sql`select count(*)::int as n from cwl.plans`;assert.equal(count.n,0);
+});
+
+test('authenticated ranked proposals verify source signatures before persistence and retain the complete audit',async()=>{
+  const sample=rankedFixture(),key='disposable-ranked-private-bridge-key-123456789';
+  provider.raw=sample.raw;provider.records=sample.history;now=sample.now;
+  sample.ranked.packets=await Promise.all(sample.ranked.packets.map(p=>signRanked(p,key)));
+  const result=planWar({raw:sample.raw,clanTag:CLAN,history:sample.history,ranked:sample.ranked});
+  const payload={raw:sample.raw,training:{history:sample.history,ranked:sample.ranked,warnings:[]},model:result.model,config:result.config,plannerVersion:result.version,computeMs:100,computedAt:new Date(now).toISOString()};
+  const handler=createCwlHandler({provider,database:async(_,fn)=>fn(sql),clock:()=>now,browserPlans:true,authorize:async()=>({id:'test',role:'leader'})});
+  const send=async p=>{
+    const archive=await new Response(new Blob([JSON.stringify(p)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+    return handler(new Request(`http://localhost/api/cwl/clans/${CLAN}/wars/${start}/plan/initialize`,{method:'POST',headers:{'Content-Type':'application/gzip'},body:archive}),{...env,CWL_BACKEND_KEY:key});
+  };
+  const bad=structuredClone(payload);bad.training.ranked.packets[1].items[0].league=36;
+  await assert.rejects(send(bad),e=>e.code==='ranked_source_invalid');
+  const [empty]=await sql`select count(*)::int as n from cwl.plans`;assert.equal(empty.n,0);
+  const response=await send(payload);assert.equal(response.status,201);
+  const audit=await service.read(CLAN,start,true);
+  assert.deepEqual(audit.scoreSnapshot,payload.model);assert.deepEqual(audit.sourceSnapshot.ranked,sample.ranked);
+  assert.equal(audit.scoreSnapshot.version,'war-atq-ranked-v1');
 });
 
 test('concurrent browser submissions decompress and persist only the first proposal',async()=>{

@@ -6,6 +6,7 @@ import { clientKey } from './cwl/rate-limit.js';
 import { captureWars, backendRequest } from './war-capture.js';
 import { officialJson, officialSource, clanPath } from './official-api.js';
 import { mergeWarHistory, historyFreshness } from './war-history.js';
+import { rankedApi } from './ranked-api.js';
 const PROFILE_API = 'https://clashapi.colinschmale.dev';
 const HISTORY_API = 'https://api.clashk.ing';
 const TTL = 60;
@@ -363,7 +364,8 @@ export function createWorker(cwlHandler = handleCwl) { return {
     try {
       if(backend&&env.CWL_REQUIRE_BRIDGE==='true'&&!env.CWL_BACKEND_URL)
         throw new CwlError(503,'A CWL ainda não foi configurada para publicação.','cwl_backend_not_configured');
-      const result = url.pathname==='/api/cwl/source' ? await sourceProxy(request)
+      const result = url.pathname.startsWith('/api/ranked/') ? await rankedApi(request,env) || json({error:'Rota não encontrada.'},404)
+        : url.pathname==='/api/cwl/source' ? await sourceProxy(request)
         : env.CWL_BACKEND_URL&&url.pathname.startsWith('/api/cwl/') ? await bridgeCwl(request,env)
         : await api(request,ctx,env,cwlHandler);
       return logApiRequest(request,cors(result),startedAt);

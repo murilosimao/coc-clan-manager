@@ -3,6 +3,7 @@ import { CwlService } from './service.js';
 import { ClashCwlProvider } from './provider.js';
 import { CwlError, clanTag, warTime, requireCondition } from './errors.js';
 import { readArchive } from './archive.js';
+import { verifyRanked } from '../ranked-proof.js';
 
 const response = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 async function readBody(request) {
@@ -120,7 +121,11 @@ export function createCwlHandler({ provider = new ClashCwlProvider(), database =
         if(action==='initialize'){
           // The DB lock is acquired before decompressing. A competing visitor
           // reuses the first committed plan without duplicating the large model.
-          const plan=await service.initializeComputed(tag,start,()=>readArchive(request),null,actor);
+          const plan=await service.initializeComputed(tag,start,async()=>{
+            const input=await readArchive(request);
+            requireCondition(await verifyRanked(input.payload?.training?.ranked,env.CWL_BACKEND_KEY,clock()),422,'Os dados da ranqueada expiraram ou não foram confirmados. Prepare o plano novamente.','ranked_source_invalid');
+            return input;
+          },null,actor);
           if(!plan.created)await request.body?.cancel();
           return response(plan,plan.created?201:200);
         }

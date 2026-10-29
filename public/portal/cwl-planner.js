@@ -1,4 +1,4 @@
-import { WarScores as S, ClashKing } from './cwl-scoring.js';
+import { WarScores as S, RankedScores, ClashKing } from './cwl-scoring.js';
 import { requireCondition, timestamp } from './cwl-errors.js';
 
 export const PLANNER_VERSION = 'cwl-assignment-v2.1';
@@ -61,9 +61,9 @@ export function validateWar(raw, tag) {
   return war;
 }
 
-export function planWar({ raw, clanTag, history, config = DEFAULT_CONFIG }) {
+export function planWar({ raw, clanTag, history, ranked, config = DEFAULT_CONFIG }) {
   const war = validateWar(raw, clanTag);
-  const model = S.fit({ war, history });
+  const model = RankedScores.apply(S.fit({ war, history }), ranked, history);
   return planFromModel({ raw, clanTag, model, config });
 }
 
@@ -100,7 +100,7 @@ export function planFromModel({ raw, clanTag, model, config = DEFAULT_CONFIG }) 
     return { attackerTag: attacker.tag, defenderTag: defender.tag, attackerName: attacker.name, defenderName: defender.name,
       attackerCV: attacker.th, defenderCV: defender.th, attackScore: a.attackScore, defenseScore: d.defenseScore,
       attackCount: a.attackCount, defenseCount: d.defenseCount, attackWeight: a.attackWeight, defenseWeight: d.defenseWeight,
-      attackEvidence: S.evidence(a, 'attack'), defenseEvidence: S.evidence(d, 'defense'),
+      attackEvidence: { ...S.evidence(a, 'attack'), ...(a.rankedEvidence ? { ranked: a.rankedEvidence, baseScore: a.baseAttackScore } : {}) }, defenseEvidence: S.evidence(d, 'defense'),
       expectedStars, expectedGain, targetStarsBeforePlan: before, targetAttackedBeforePlan: best.has(defender.tag), probabilities, goalStars, goalSupport: tails[goalStars - 1], warnings,
       evidence: warnings.length ? 'limited' : 'supported', reviewRequired: warnings.length > 0,
       goalStatus: warnings.includes('cv_gap_outside_model_range') ? 'outside_model_range' : !supported.length ? 'reference' : warnings.length ? 'limited' : 'supported', eta };
